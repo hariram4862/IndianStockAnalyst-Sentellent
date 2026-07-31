@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FollowTickerDialog } from "@/components/stocks/follow-ticker-dialog"
+import { IndexTickerStrip } from "@/components/dashboard/index-ticker-strip"
+import { MarketMovers } from "@/components/dashboard/market-movers"
+import { MarketNewsFeed } from "@/components/dashboard/market-news-feed"
 import { formatInr, relativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { listAgentDecisions } from "@/services/agent"
@@ -72,6 +75,8 @@ export default function OverviewPage() {
   return (
     <div className="h-full overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto max-w-5xl space-y-8">
+        <IndexTickerStrip />
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold sm:text-xl">
@@ -194,6 +199,11 @@ export default function OverviewPage() {
               ))}
             </div>
           </section>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <MarketMovers />
+          <MarketNewsFeed />
         </div>
 
         {decisionsQuery.data && decisionsQuery.data.length > 0 && (

@@ -3,11 +3,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import re
+import time
 from xml.etree import ElementTree
 
 import requests
 
 from app.services.providers import NewsArticlePayload
+
+MARKET_HEADLINES_CACHE_TTL_SECONDS = 180
+_market_headlines_cache: tuple[float, list[dict]] | None = None
 
 
 # Verified live and actively publishing (checked pubDate freshness directly,
@@ -69,7 +73,14 @@ class NewsProvider:
                 continue
 
             try:
-                root = ElementTree.fromstring(response.text)
+                # response.content (bytes), not .text: requests guesses text
+                # decoding from the HTTP Content-Type header, which several of
+                # these feeds omit a charset for, silently mojibake-ing
+                # multi-byte UTF-8 punctuation (smart quotes, em dashes).
+                # ElementTree parses bytes using the XML prolog's own
+                # <?xml ... encoding="..."?> declaration instead, which is
+                # what these feeds actually get right.
+                root = ElementTree.fromstring(response.content)
             except ElementTree.ParseError:
                 continue
 
@@ -101,6 +112,52 @@ class NewsProvider:
         for article in articles:
             unique.setdefault(article.external_id, article)
         return list(unique.values())
+
+    def fetch_market_headlines(self, limit: int = 20) -> list[dict]:
+        """General market headlines across all configured feeds, with no
+        per-ticker filtering -- powers the dashboard's news feed rather than
+        a specific stock's citations. Cached briefly so every dashboard load
+        doesn't re-hit all 4 feeds."""
+        global _market_headlines_cache
+        if (
+            _market_headlines_cache is not None
+            and time.monotonic() - _market_headlines_cache[0] < MARKET_HEADLINES_CACHE_TTL_SECONDS
+        ):
+            return _market_headlines_cache[1][:limit]
+
+        headlines = self._fetch_market_headlines()
+        _market_headlines_cache = (time.monotonic(), headlines)
+        return headlines[:limit]
+
+    def _fetch_market_headlines(self) -> list[dict]:
+        headlines: list[dict] = []
+        seen_links: set[str] = set()
+
+        for source_name, feed_url in RSS_FEEDS:
+            try:
+                response = requests.get(feed_url, headers=REQUEST_HEADERS, timeout=15)
+                response.raise_for_status()
+                root = ElementTree.fromstring(response.content)
+            except (requests.RequestException, ElementTree.ParseError):
+                continue
+
+            for item in root.findall(".//item")[:15]:
+                title = _get_text(item, "title")
+                link = _get_text(item, "link")
+                if not title or not link or link in seen_links:
+                    continue
+                seen_links.add(link)
+                headlines.append(
+                    {
+                        "title": title,
+                        "url": link,
+                        "source_name": source_name,
+                        "published_at": _parse_rss_datetime(_get_text(item, "pubDate")),
+                    }
+                )
+
+        headlines.sort(key=lambda h: h["published_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        return headlines
 
 
 def _derive_aliases(ticker: str, company_name: str | None) -> list[str]:
