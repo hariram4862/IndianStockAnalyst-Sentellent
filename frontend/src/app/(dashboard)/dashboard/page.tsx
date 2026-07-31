@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
@@ -140,8 +139,8 @@ export default function OverviewPage() {
   const isLoading = stocksQuery.isLoading || sessionsQuery.isLoading
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-7xl grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr_320px]">
+    <div className="h-full overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+      <div className="mx-auto grid max-w-[1800px] grid-cols-1 gap-6 lg:grid-cols-[300px_1fr_320px] lg:gap-10">
         <div className="space-y-6 lg:order-1">
           <FollowedStocksPanel />
           <AlertsManagerPanel />
@@ -212,34 +211,6 @@ export default function OverviewPage() {
           )}
 
           <DashboardChatBox />
-
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Recent research</h2>
-              <Link href="/chat" className="text-xs font-medium text-accent-brand hover:underline">
-                Open chat
-              </Link>
-            </div>
-            {sessions.length === 0 && !isLoading && (
-              <div className="rounded-xl border border-dashed border-border p-6 text-center">
-                <MessageSquare className="mx-auto size-5 text-muted-foreground" />
-                <p className="mt-2 text-sm font-medium">No research yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">Ask your first question to get started.</p>
-              </div>
-            )}
-            <div className="space-y-2">
-              {sessions.slice(0, 5).map((session) => (
-                <button
-                  key={session.id}
-                  onClick={() => router.push(`/chat?session=${session.id}`)}
-                  className="block w-full rounded-lg border border-border p-3 text-left transition-colors hover:border-accent-brand/40"
-                >
-                  <p className="truncate text-sm font-medium">{session.title}</p>
-                  <p className="text-xs text-muted-foreground">{relativeTime(session.updated_at)}</p>
-                </button>
-              ))}
-            </div>
-          </section>
         </div>
 
         <div className="space-y-6 lg:order-3">

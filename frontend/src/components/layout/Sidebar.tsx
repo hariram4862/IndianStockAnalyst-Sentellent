@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { ChevronsLeft, ChevronsRight, LogOut, User as UserIcon } from "lucide-react"
+import { useTheme } from "next-themes"
+import { ChevronsLeft, ChevronsRight, LogOut, Monitor, Moon, Sun, SunMoon, User as UserIcon } from "lucide-react"
 
 import { navItems } from "@/config/navigation"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -13,7 +14,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -27,6 +33,7 @@ export default function Sidebar() {
   const router = useRouter()
   const { user, logout } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar } = useUiStore()
+  const { theme, setTheme } = useTheme()
 
   function handleLogout() {
     logout()
@@ -122,6 +129,25 @@ export default function Sidebar() {
             <DropdownMenuItem render={<Link href="/profile" />}>
               <UserIcon /> Profile
             </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <SunMoon /> Appearance
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+                  <DropdownMenuRadioItem value="system">
+                    <Monitor /> System
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="light">
+                    <Sun /> Light
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="dark">
+                    <Moon /> Dark
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={handleLogout}>
               <LogOut /> Log out
             </DropdownMenuItem>

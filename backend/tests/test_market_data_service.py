@@ -32,7 +32,7 @@ def test_get_index_quotes_computes_change_from_previous_close(monkeypatch):
         {
             "^NSEI": _FakeInstrument({"regularMarketPrice": 24400.0, "regularMarketPreviousClose": 24300.0}),
             "^BSESN": _FakeInstrument({"regularMarketPrice": 100.0, "regularMarketPreviousClose": 100.0}),
-            "^NSEBANK": _FakeInstrument({}),  # missing data -- must be skipped, not crash
+            "^NSMIDCP": _FakeInstrument({}),  # missing data -- must be skipped, not crash
             "^CNXIT": _FakeInstrument({"regularMarketPrice": 500.0, "regularMarketPreviousClose": 1000.0}),
         }
     )
@@ -51,7 +51,7 @@ def test_get_index_quotes_computes_change_from_previous_close(monkeypatch):
     assert round(by_symbol["^NSEI"]["change_percent"], 2) == round((100.0 / 24300.0) * 100, 2)
     assert by_symbol["^BSESN"]["change_percent"] == 0.0
     assert by_symbol["^CNXIT"]["change_percent"] == -50.0
-    assert "^NSEBANK" not in by_symbol
+    assert "^NSMIDCP" not in by_symbol
 
 
 def test_get_index_quotes_caches_within_ttl(monkeypatch):

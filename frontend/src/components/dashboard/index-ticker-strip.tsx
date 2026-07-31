@@ -66,13 +66,13 @@ export function IndexTickerStrip() {
         <LivePill lastUpdated={quotesQuery.dataUpdatedAt ? new Date(quotesQuery.dataUpdatedAt) : undefined} />
       </div>
       {quotesQuery.isLoading ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-[74px] w-full" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {quotes.map((quote) => {
             const sparklinePoints = (intradaySeries[quote.symbol] ?? []).map((point) => point.price)
             return (

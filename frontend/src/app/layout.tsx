@@ -5,6 +5,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import GoogleProvider from "@/providers/google-provider";
 import QueryProvider from "@/providers/query-provider";
+import ThemeProvider from "@/providers/theme-provider";
 
 const sansFont = Inter({
   subsets: ["latin"],
@@ -29,14 +30,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${sansFont.variable} ${monoFont.variable}`}>
-        <QueryProvider>
-          <GoogleProvider>
-            {children}
-            <Toaster />
-          </GoogleProvider>
-        </QueryProvider>
+        <ThemeProvider>
+          <QueryProvider>
+            <GoogleProvider>
+              {children}
+              <Toaster />
+            </GoogleProvider>
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

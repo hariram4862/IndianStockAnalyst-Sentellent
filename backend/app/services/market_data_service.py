@@ -13,13 +13,8 @@ except Exception:  # pragma: no cover - handled by runtime fallback
 INDEX_SYMBOLS = [
     ("NIFTY 50", "^NSEI"),
     ("SENSEX", "^BSESN"),
-    ("NIFTY BANK", "^NSEBANK"),
     ("NIFTY NEXT 50", "^NSMIDCP"),
     ("NIFTY IT", "^CNXIT"),
-    ("NIFTY AUTO", "^CNXAUTO"),
-    ("NIFTY PHARMA", "^CNXPHARMA"),
-    ("NIFTY FMCG", "^CNXFMCG"),
-    ("INDIA VIX", "^INDIAVIX"),
 ]
 
 # Fixed, well-known Nifty 50 constituent list (index membership changes only a
