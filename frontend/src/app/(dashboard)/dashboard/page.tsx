@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Send } from "lucide-react"
@@ -8,7 +8,7 @@ import { Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { CitationList } from "@/components/chat/citation-list"
+import { MessageSources } from "@/components/chat/citation-list"
 import { SessionList } from "@/components/chat/session-list"
 import { getErrorMessage } from "@/lib/errors"
 import { cn } from "@/lib/utils"
@@ -77,13 +77,8 @@ export default function ChatPage() {
     sendMutation.mutate(trimmed)
   }
 
-  const lastAssistantMessage = useMemo(
-    () => [...messages].reverse().find((message) => message.role === "assistant"),
-    [messages]
-  )
-
   return (
-    <div className="grid h-full grid-cols-1 lg:grid-cols-[240px_1fr] xl:grid-cols-[240px_1fr_320px]">
+    <div className="grid h-full grid-cols-1 lg:grid-cols-[240px_1fr]">
       <aside className="hidden overflow-hidden border-r border-border lg:block">
         <SessionList
           sessions={sessionsQuery.data ?? []}
@@ -109,7 +104,7 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+        <div className="mx-auto flex-1 w-full max-w-3xl space-y-4 overflow-y-auto px-6 py-4">
           {historyQuery.isLoading && activeSessionId != null && (
             <div className="space-y-3">
               <Skeleton className="h-16 w-2/3" />
@@ -128,7 +123,7 @@ export default function ChatPage() {
           )}
 
           {messages.map((message, index) => (
-            <div key={index} className={cn("max-w-[75%]", message.role === "user" ? "ml-auto" : "mr-auto")}>
+            <div key={index} className={cn("max-w-[85%]", message.role === "user" ? "ml-auto" : "mr-auto")}>
               <div
                 className={cn(
                   "rounded-lg border px-4 py-3 text-sm whitespace-pre-wrap",
@@ -139,23 +134,19 @@ export default function ChatPage() {
               >
                 {message.content}
               </div>
-              {message.role === "assistant" && message.citations.length > 0 && (
-                <div className="mt-2 xl:hidden">
-                  <CitationList citations={message.citations} />
-                </div>
-              )}
+              {message.role === "assistant" && <MessageSources citations={message.citations} />}
             </div>
           ))}
 
           {sendMutation.isPending && (
-            <div className="mr-auto max-w-[75%] rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+            <div className="mr-auto max-w-[85%] rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               Thinking…
             </div>
           )}
         </div>
 
         <div className="border-t border-border p-4">
-          <div className="flex items-end gap-2">
+          <div className="mx-auto flex max-w-3xl items-end gap-2">
             <Textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -174,20 +165,6 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
-
-      <aside className="hidden overflow-hidden border-l border-border xl:flex xl:flex-col">
-        <div className="border-b border-border px-4 py-4">
-          <h2 className="text-sm font-semibold">Sources</h2>
-          <p className="text-xs text-muted-foreground">Evidence behind the latest answer.</p>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          {lastAssistantMessage ? (
-            <CitationList citations={lastAssistantMessage.citations} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Ask a question to see grounded sources here.</p>
-          )}
-        </div>
-      </aside>
     </div>
   )
 }

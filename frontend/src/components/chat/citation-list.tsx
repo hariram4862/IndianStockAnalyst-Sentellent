@@ -1,6 +1,10 @@
-import { ExternalLink, Minus, TrendingDown, TrendingUp } from "lucide-react"
+"use client"
+
+import { useState } from "react"
+import { ChevronDown, ExternalLink, Minus, TrendingDown, TrendingUp } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import type { Citation } from "@/types/research"
 
 function SentimentIcon({ label }: { label: string | null }) {
@@ -54,8 +58,39 @@ export function CitationList({ citations }: { citations: Citation[] }) {
   return (
     <div className="space-y-3">
       {citations.map((citation, index) => (
-        <CitationCard key={`${citation.ticker}-${index}`} citation={citation} />
+        <div
+          key={`${citation.ticker}-${index}`}
+          className="animate-in fade-in slide-in-from-bottom-1 fill-mode-backwards"
+          style={{ animationDelay: `${index * 60}ms`, animationDuration: "300ms" }}
+        >
+          <CitationCard citation={citation} />
+        </div>
       ))}
+    </div>
+  )
+}
+
+/** Collapsible "Sources (N)" block shown directly under a chat message. */
+export function MessageSources({ citations }: { citations: Citation[] }) {
+  const [open, setOpen] = useState(true)
+
+  if (citations.length === 0) return null
+
+  return (
+    <div className="mt-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+      >
+        <ChevronDown className={cn("size-3.5 transition-transform", !open && "-rotate-90")} />
+        Sources ({citations.length})
+      </button>
+      {open && (
+        <div className="mt-2">
+          <CitationList citations={citations} />
+        </div>
+      )}
     </div>
   )
 }
