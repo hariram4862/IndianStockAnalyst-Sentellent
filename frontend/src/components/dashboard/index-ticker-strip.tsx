@@ -5,7 +5,7 @@ import { Minus, TrendingDown, TrendingUp } from "lucide-react"
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { getIndexIntraday, getIndexQuotes } from "@/services/market"
+import { getAllIndexIntraday, getIndexQuotes } from "@/services/market"
 import { LivePill } from "./live-pill"
 
 function Sparkline({ points }: { points: number[] }) {
@@ -51,13 +51,13 @@ export function IndexTickerStrip() {
     refetchInterval: 60_000,
   })
   const intradayQuery = useQuery({
-    queryKey: ["market-index-intraday", "NSEI"],
-    queryFn: () => getIndexIntraday("NSEI"),
+    queryKey: ["market-index-intraday-all"],
+    queryFn: getAllIndexIntraday,
     refetchInterval: 60_000,
   })
 
   const quotes = quotesQuery.data ?? []
-  const sparklinePoints = (intradayQuery.data ?? []).map((point) => point.price)
+  const intradaySeries = intradayQuery.data ?? {}
 
   return (
     <div className="space-y-2">
@@ -66,21 +66,23 @@ export function IndexTickerStrip() {
         <LivePill lastUpdated={quotesQuery.dataUpdatedAt ? new Date(quotesQuery.dataUpdatedAt) : undefined} />
       </div>
       {quotesQuery.isLoading ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-[74px] w-full" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {quotes.map((quote) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {quotes.map((quote) => {
+            const sparklinePoints = (intradaySeries[quote.symbol] ?? []).map((point) => point.price)
+            return (
             <div key={quote.symbol} className="rounded-xl border border-border bg-card p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">{quote.name}</p>
                   <p className="mt-0.5 truncate text-lg font-semibold">{quote.price.toLocaleString("en-IN")}</p>
                 </div>
-                {quote.symbol === "^NSEI" && sparklinePoints.length > 1 && <Sparkline points={sparklinePoints} />}
+                {sparklinePoints.length > 1 && <Sparkline points={sparklinePoints} />}
               </div>
               <p
                 className={cn(
@@ -98,7 +100,8 @@ export function IndexTickerStrip() {
                 {quote.change_percent.toFixed(2)}%)
               </p>
             </div>
-          ))}
+            )
+          })}
           {quotes.length === 0 && (
             <p className="col-span-full text-sm text-muted-foreground">Market data unavailable right now.</p>
           )}

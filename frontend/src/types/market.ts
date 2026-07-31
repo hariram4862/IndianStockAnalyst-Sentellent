@@ -11,6 +11,8 @@ export interface IndexIntradayPoint {
   price: number
 }
 
+export type IndexIntradaySeriesMap = Record<string, IndexIntradayPoint[]>
+
 export interface MarketMover {
   ticker: string
   price: number

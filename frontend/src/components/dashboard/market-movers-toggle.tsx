@@ -1,6 +1,8 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { AnimatePresence, motion } from "framer-motion"
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { getMarketMovers } from "@/services/market"
@@ -8,6 +10,8 @@ import { listFollowedStocks } from "@/services/stocks"
 import { useStockDetailStore } from "@/store/stock-detail-store"
 import { LivePill } from "./live-pill"
 import type { MarketMover } from "@/types/market"
+
+const TOGGLE_INTERVAL_MS = 3000
 
 function MoverRow({ mover, positive, isFollowed }: { mover: MarketMover; positive: boolean; isFollowed: boolean }) {
   const openStockDetail = useStockDetailStore((state) => state.open)
@@ -41,7 +45,9 @@ function MoverRow({ mover, positive, isFollowed }: { mover: MarketMover; positiv
   )
 }
 
-export function MarketMovers() {
+export function MarketMoversToggle() {
+  const [mode, setMode] = useState<"gainers" | "losers">("gainers")
+
   const moversQuery = useQuery({
     queryKey: ["market-movers"],
     queryFn: getMarketMovers,
@@ -50,33 +56,67 @@ export function MarketMovers() {
   const followedQuery = useQuery({ queryKey: ["followed-stocks"], queryFn: listFollowedStocks })
   const followedTickers = new Set((followedQuery.data ?? []).map((f) => f.stock.ticker))
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMode((current) => (current === "gainers" ? "losers" : "gainers"))
+    }, TOGGLE_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [])
+
+  const movers = (mode === "gainers" ? moversQuery.data?.gainers : moversQuery.data?.losers) ?? []
+
   return (
     <div className="space-y-3 rounded-xl border border-border p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Market movers</h2>
         <LivePill lastUpdated={moversQuery.dataUpdatedAt ? new Date(moversQuery.dataUpdatedAt) : undefined} />
       </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setMode("gainers")}
+          className={`h-1 w-4 rounded-full transition-colors ${mode === "gainers" ? "bg-positive" : "bg-muted"}`}
+          aria-label="Show top gainers"
+        />
+        <button
+          type="button"
+          onClick={() => setMode("losers")}
+          className={`h-1 w-4 rounded-full transition-colors ${mode === "losers" ? "bg-negative" : "bg-muted"}`}
+          aria-label="Show top losers"
+        />
+        <span className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+          {mode === "gainers" ? "Top gainers" : "Top losers"}
+        </span>
+      </div>
+
       {moversQuery.isLoading ? (
         <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-7 w-full" />
           ))}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <p className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">Top gainers</p>
-            {(moversQuery.data?.gainers ?? []).map((mover) => (
-              <MoverRow key={mover.ticker} mover={mover} positive isFollowed={followedTickers.has(mover.ticker)} />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={mode}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-1"
+          >
+            {movers.map((mover) => (
+              <MoverRow
+                key={mover.ticker}
+                mover={mover}
+                positive={mode === "gainers"}
+                isFollowed={followedTickers.has(mover.ticker)}
+              />
             ))}
-          </div>
-          <div className="space-y-1">
-            <p className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">Top losers</p>
-            {(moversQuery.data?.losers ?? []).map((mover) => (
-              <MoverRow key={mover.ticker} mover={mover} positive={false} isFollowed={followedTickers.has(mover.ticker)} />
-            ))}
-          </div>
-        </div>
+            {movers.length === 0 && <p className="text-sm text-muted-foreground">No data available.</p>}
+          </motion.div>
+        </AnimatePresence>
       )}
     </div>
   )

@@ -26,6 +26,11 @@ def get_index_intraday(symbol: str, current_user: User = Depends(get_current_use
     return market_data_service.get_index_intraday(f"^{symbol.upper()}" if not symbol.startswith("^") else symbol)
 
 
+@router.get("/indices/intraday", response_model=dict[str, list[IndexIntradayPointResponse]])
+def get_all_indices_intraday(current_user: User = Depends(get_current_user)):
+    return market_data_service.get_all_index_intraday()
+
+
 @router.get("/movers", response_model=MarketMoversResponse)
 def get_movers(current_user: User = Depends(get_current_user)):
     return market_data_service.get_market_movers()

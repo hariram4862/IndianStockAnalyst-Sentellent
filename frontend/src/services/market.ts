@@ -1,5 +1,5 @@
 import api from "./api"
-import type { IndexIntradayPoint, IndexQuote, MarketHeadline, MarketMovers } from "@/types/market"
+import type { IndexIntradayPoint, IndexIntradaySeriesMap, IndexQuote, MarketHeadline, MarketMovers } from "@/types/market"
 
 export const getIndexQuotes = async (): Promise<IndexQuote[]> => {
   const response = await api.get("/market/indices")
@@ -8,6 +8,11 @@ export const getIndexQuotes = async (): Promise<IndexQuote[]> => {
 
 export const getIndexIntraday = async (symbol: string): Promise<IndexIntradayPoint[]> => {
   const response = await api.get(`/market/indices/${symbol}/intraday`)
+  return response.data
+}
+
+export const getAllIndexIntraday = async (): Promise<IndexIntradaySeriesMap> => {
+  const response = await api.get("/market/indices/intraday")
   return response.data
 }
 

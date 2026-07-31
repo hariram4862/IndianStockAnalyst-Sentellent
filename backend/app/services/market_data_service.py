@@ -14,7 +14,12 @@ INDEX_SYMBOLS = [
     ("NIFTY 50", "^NSEI"),
     ("SENSEX", "^BSESN"),
     ("NIFTY BANK", "^NSEBANK"),
+    ("NIFTY NEXT 50", "^NSMIDCP"),
     ("NIFTY IT", "^CNXIT"),
+    ("NIFTY AUTO", "^CNXAUTO"),
+    ("NIFTY PHARMA", "^CNXPHARMA"),
+    ("NIFTY FMCG", "^CNXFMCG"),
+    ("INDIA VIX", "^INDIAVIX"),
 ]
 
 # Fixed, well-known Nifty 50 constituent list (index membership changes only a
@@ -39,6 +44,7 @@ MOVERS_CACHE_TTL_SECONDS = 300
 
 _index_cache: tuple[float, list[dict]] | None = None
 _intraday_cache: dict[str, tuple[float, list[dict]]] = {}
+_all_intraday_cache: tuple[float, dict[str, list[dict]]] | None = None
 _movers_cache: tuple[float, dict] | None = None
 
 
@@ -107,6 +113,38 @@ class MarketDataService:
 
         closes = history["Close"].tail(limit)
         return [{"time": ts.isoformat(), "price": round(float(value), 2)} for ts, value in closes.items()]
+
+    def get_all_index_intraday(self, limit: int = 30) -> dict[str, list[dict]]:
+        global _all_intraday_cache
+        if _all_intraday_cache is not None and time.monotonic() - _all_intraday_cache[0] < INTRADAY_CACHE_TTL_SECONDS:
+            return _all_intraday_cache[1]
+
+        series = self._fetch_all_index_intraday(limit)
+        _all_intraday_cache = (time.monotonic(), series)
+        return series
+
+    def _fetch_all_index_intraday(self, limit: int) -> dict[str, list[dict]]:
+        symbols = [symbol for _name, symbol in INDEX_SYMBOLS]
+        if yf is None:
+            return {symbol: [] for symbol in symbols}
+
+        try:
+            data = yf.download(
+                symbols, period="1d", interval="5m", group_by="ticker", progress=False, threads=True
+            )
+        except Exception:
+            return {symbol: [] for symbol in symbols}
+
+        series: dict[str, list[dict]] = {}
+        for symbol in symbols:
+            try:
+                closes = data[symbol]["Close"].dropna().tail(limit)
+                series[symbol] = [
+                    {"time": ts.isoformat(), "price": round(float(value), 2)} for ts, value in closes.items()
+                ]
+            except Exception:
+                series[symbol] = []
+        return series
 
     def get_market_movers(self, limit: int = 5) -> dict:
         global _movers_cache

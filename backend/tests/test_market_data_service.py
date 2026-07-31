@@ -21,6 +21,7 @@ class _FakeTickers:
 def _clear_caches():
     module._index_cache = None
     module._intraday_cache.clear()
+    module._all_intraday_cache = None
     module._movers_cache = None
 
 
@@ -122,6 +123,59 @@ def test_get_market_movers_skips_tickers_with_missing_data(monkeypatch):
 
     assert "DELISTEDCO" not in tickers
     assert "RELIANCE" in tickers
+
+
+def test_get_all_index_intraday_returns_one_series_per_index(monkeypatch):
+    _clear_caches()
+
+    symbols = ["^NSEI", "^BSESN"]
+    monkeypatch.setattr(module, "INDEX_SYMBOLS", [("NIFTY 50", "^NSEI"), ("SENSEX", "^BSESN")])
+
+    frame = pd.DataFrame(
+        {
+            ("^NSEI", "Close"): [24300.0, 24400.0],
+            ("^BSESN", "Close"): [78000.0, 78100.0],
+        },
+        index=pd.to_datetime(["2026-07-31 09:15", "2026-07-31 09:20"]),
+    )
+    frame.columns = pd.MultiIndex.from_tuples(frame.columns)
+
+    class _FakeYFModule:
+        @staticmethod
+        def download(*args, **kwargs):
+            return frame
+
+    monkeypatch.setattr(module, "yf", _FakeYFModule())
+
+    series = MarketDataService().get_all_index_intraday(limit=30)
+
+    assert set(series.keys()) == set(symbols)
+    assert series["^NSEI"][-1]["price"] == 24400.0
+    assert series["^BSESN"][-1]["price"] == 78100.0
+
+
+def test_get_all_index_intraday_degrades_missing_symbol_to_empty_list(monkeypatch):
+    _clear_caches()
+
+    monkeypatch.setattr(module, "INDEX_SYMBOLS", [("NIFTY 50", "^NSEI"), ("SENSEX", "^BSESN")])
+
+    frame = pd.DataFrame(
+        {("^NSEI", "Close"): [24300.0, 24400.0]},
+        index=pd.to_datetime(["2026-07-31 09:15", "2026-07-31 09:20"]),
+    )
+    frame.columns = pd.MultiIndex.from_tuples(frame.columns)
+
+    class _FakeYFModule:
+        @staticmethod
+        def download(*args, **kwargs):
+            return frame
+
+    monkeypatch.setattr(module, "yf", _FakeYFModule())
+
+    series = MarketDataService().get_all_index_intraday(limit=30)
+
+    assert series["^NSEI"][-1]["price"] == 24400.0
+    assert series["^BSESN"] == []
 
 
 def test_get_index_intraday_returns_recent_closes(monkeypatch):

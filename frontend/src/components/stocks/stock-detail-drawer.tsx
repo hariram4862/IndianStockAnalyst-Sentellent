@@ -14,10 +14,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { getErrorMessage } from "@/lib/errors"
 import { cn } from "@/lib/utils"
 import { formatInr, formatInrCrores, formatPercent, relativeTime } from "@/lib/format"
+import { RULE_LABELS, ruleSummary } from "@/lib/alert-rules"
 import { createAlertRule, deleteAlertRule, listAlertRules } from "@/services/alerts"
 import { getStockDetail } from "@/services/stocks"
 import { useStockDetailStore } from "@/store/stock-detail-store"
-import type { AlertRule, AlertRuleType } from "@/types/agent"
+import type { AlertRuleType } from "@/types/agent"
 
 function SentimentIcon({ label }: { label: string | null }) {
   if (label === "positive") return <TrendingUp className="size-3.5 text-positive" />
@@ -32,17 +33,6 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
       <p className="truncate text-sm font-medium">{value}</p>
     </div>
   )
-}
-
-const RULE_LABELS: Record<AlertRuleType, string> = {
-  negative_sentiment: "Sentiment turns negative",
-  positive_sentiment: "Sentiment turns positive",
-  debt_threshold: "Debt/Equity exceeds",
-}
-
-function ruleSummary(rule: AlertRule): string {
-  if (rule.rule_type === "debt_threshold") return `Debt/Equity exceeds ${rule.threshold}`
-  return RULE_LABELS[rule.rule_type]
 }
 
 function AlertsSection({ ticker }: { ticker: string }) {
