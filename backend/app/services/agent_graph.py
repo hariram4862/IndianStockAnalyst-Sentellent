@@ -13,6 +13,7 @@ from app.models.document import DocumentChunk, SourceDocument
 from app.models.stock import FollowedStock, StockEntity, UserPersonaMemory
 from app.models.user import User
 from app.schemas.chat import CitationResponse
+from app.services.citation_utils import build_citation
 from app.services.embedding_service import EmbeddingService
 from app.services.gemini_service import GeminiService
 from app.services.stock_scoring import RankedStock, from_stock_entity, rank_stocks
@@ -290,7 +291,7 @@ class AgentGraph:
             similarity_score = max(0.0, min(1.0, 1 - float(distance)))
             if similarity_score < MIN_VECTOR_SIMILARITY and not target_tickers:
                 continue
-            citations.append(_to_citation(stock, document, chunk.content, similarity_score))
+            citations.append(build_citation(stock, document, chunk.content, similarity_score))
             if len(citations) == MAX_CITATIONS:
                 break
         return citations
@@ -311,7 +312,7 @@ class AgentGraph:
             )
 
         rows = self.db.execute(stmt.limit(MAX_CITATIONS)).all()
-        citations = [_to_citation(stock, document, document.content[:220], None) for document, stock in rows]
+        citations = [build_citation(stock, document, document.content[:220], None) for document, stock in rows]
         if citations or target_tickers:
             return citations
 
@@ -533,27 +534,6 @@ def _clean_str(value: object) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
-
-
-def _to_citation(
-    stock: StockEntity,
-    document: SourceDocument,
-    snippet: str,
-    similarity_score: float | None,
-) -> CitationResponse:
-    return CitationResponse(
-        ticker=stock.ticker,
-        title=f"{stock.ticker}: {document.title}",
-        source_type=document.source_type,
-        url=document.url,
-        published_at=document.published_at,
-        snippet=snippet[:220],
-        sentiment_label=document.sentiment_label,
-        sentiment_score=float(document.sentiment_score) if document.sentiment_score is not None else None,
-        impact_label=document.impact_label,
-        event_type=document.event_type,
-        similarity_score=round(similarity_score, 3) if similarity_score is not None else None,
-    )
 
 
 def _citation_to_prompt_dict(index: int, citation: CitationResponse) -> dict[str, object]:

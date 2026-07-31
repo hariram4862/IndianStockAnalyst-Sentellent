@@ -4,6 +4,7 @@ import { useState } from "react"
 import { ChevronDown, ExternalLink, Minus, TrendingDown, TrendingUp } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import { citationAnchorId } from "@/lib/citation-markers"
 import { cn } from "@/lib/utils"
 import type { Citation } from "@/types/research"
 
@@ -13,11 +14,17 @@ function SentimentIcon({ label }: { label: string | null }) {
   return <Minus className="size-3" />
 }
 
-function CitationCard({ citation }: { citation: Citation }) {
+function sentimentBadgeVariant(label: string | null): "positive" | "negative" | "outline" {
+  if (label === "positive") return "positive"
+  if (label === "negative") return "negative"
+  return "outline"
+}
+
+function CitationCard({ citation, anchorId }: { citation: Citation; anchorId?: string }) {
   return (
-    <div className="space-y-2 rounded-lg border border-border p-3">
+    <div id={anchorId} className="scroll-mt-24 space-y-2 rounded-lg border border-border p-3 transition-colors">
       <div className="flex items-center justify-between gap-2">
-        <Badge variant="default">{citation.ticker}</Badge>
+        <Badge variant="accent">{citation.ticker}</Badge>
         <span className="font-mono text-[11px] tracking-wider text-muted-foreground uppercase">
           {citation.source_type}
         </span>
@@ -26,7 +33,7 @@ function CitationCard({ citation }: { citation: Citation }) {
       <p className="line-clamp-3 text-sm text-muted-foreground">{citation.snippet}</p>
       <div className="flex flex-wrap items-center gap-1.5">
         {citation.sentiment_label && (
-          <Badge variant="outline">
+          <Badge variant={sentimentBadgeVariant(citation.sentiment_label)}>
             <SentimentIcon label={citation.sentiment_label} />
             {citation.sentiment_label}
           </Badge>
@@ -41,7 +48,7 @@ function CitationCard({ citation }: { citation: Citation }) {
           href={citation.url}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-medium text-foreground hover:underline"
+          className="inline-flex items-center gap-1 text-xs font-medium text-accent-brand hover:underline"
         >
           View source <ExternalLink className="size-3" />
         </a>
@@ -50,7 +57,7 @@ function CitationCard({ citation }: { citation: Citation }) {
   )
 }
 
-export function CitationList({ citations }: { citations: Citation[] }) {
+export function CitationList({ citations, messageKey = "list" }: { citations: Citation[]; messageKey?: string | number }) {
   if (citations.length === 0) {
     return <p className="text-sm text-muted-foreground">No sources for this answer yet.</p>
   }
@@ -63,7 +70,7 @@ export function CitationList({ citations }: { citations: Citation[] }) {
           className="animate-in fade-in slide-in-from-bottom-1 fill-mode-backwards"
           style={{ animationDelay: `${index * 60}ms`, animationDuration: "300ms" }}
         >
-          <CitationCard citation={citation} />
+          <CitationCard citation={citation} anchorId={citationAnchorId(messageKey, index)} />
         </div>
       ))}
     </div>
@@ -71,8 +78,16 @@ export function CitationList({ citations }: { citations: Citation[] }) {
 }
 
 /** Collapsible "Sources (N)" block shown directly under a chat message. */
-export function MessageSources({ citations }: { citations: Citation[] }) {
-  const [open, setOpen] = useState(true)
+export function MessageSources({
+  citations,
+  messageKey = "list",
+  defaultOpen = true,
+}: {
+  citations: Citation[]
+  messageKey?: string | number
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
 
   if (citations.length === 0) return null
 
@@ -88,7 +103,7 @@ export function MessageSources({ citations }: { citations: Citation[] }) {
       </button>
       {open && (
         <div className="mt-2">
-          <CitationList citations={citations} />
+          <CitationList citations={citations} messageKey={messageKey} />
         </div>
       )}
     </div>

@@ -12,10 +12,24 @@ export interface Citation {
   similarity_score: number | null
 }
 
+export interface RankedStock {
+  ticker: string
+  company_name: string
+  composite_score: number
+  value_score: number
+  stability_score: number
+  momentum_score: number
+  reason: string
+}
+
+export type ChatIntent = "recommend" | "research" | "chitchat"
+
 export interface ChatResponse {
   session_id: number
   answer: string
   citations: Citation[]
+  intent: ChatIntent
+  ranked_stocks: RankedStock[]
   persona_summary: string | null
 }
 
@@ -30,6 +44,8 @@ export interface ChatMessage {
   role: "user" | "assistant"
   content: string
   citations: Citation[]
+  intent?: ChatIntent | null
+  ranked_stocks?: RankedStock[]
   created_at: string
 }
 

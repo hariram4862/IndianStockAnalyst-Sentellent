@@ -22,10 +22,22 @@ class ChatRequest(BaseModel):
     session_id: int | None = None
 
 
+class RankedStockResponse(BaseModel):
+    ticker: str
+    company_name: str
+    composite_score: float
+    value_score: float
+    stability_score: float
+    momentum_score: float
+    reason: str
+
+
 class ChatMessageResponse(BaseModel):
     role: str
     content: str
     citations: list[CitationResponse] = []
+    intent: str | None = None
+    ranked_stocks: list[RankedStockResponse] = []
     created_at: datetime
 
 
@@ -33,6 +45,8 @@ class ChatResponse(BaseModel):
     session_id: int
     answer: str
     citations: list[CitationResponse]
+    intent: str
+    ranked_stocks: list[RankedStockResponse] = []
     persona_summary: str | None = None
 
 
@@ -41,6 +55,10 @@ class ChatSessionSummary(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+
+
+class ChatSessionUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
 
 
 class PersonaResponse(BaseModel):

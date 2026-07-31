@@ -1,10 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.chat import ChatMessageResponse, ChatRequest, ChatResponse, ChatSessionSummary, PersonaResponse
+from app.schemas.chat import (
+    ChatMessageResponse,
+    ChatRequest,
+    ChatResponse,
+    ChatSessionSummary,
+    ChatSessionUpdate,
+    PersonaResponse,
+)
 from app.services.research_service import ResearchService
 
 router = APIRouter(prefix="/research", tags=["Research"])
@@ -40,9 +47,42 @@ def get_session_messages(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.patch("/sessions/{session_id}", response_model=ChatSessionSummary)
+def rename_session(
+    session_id: int,
+    payload: ChatSessionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return research_service.rename_session(db, current_user, session_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        research_service.delete_session(db, current_user, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/persona", response_model=PersonaResponse)
 def get_persona(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     return research_service.get_persona(db, current_user)
+
+
+@router.delete("/persona", response_model=PersonaResponse)
+def reset_persona(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return research_service.reset_persona(db, current_user)

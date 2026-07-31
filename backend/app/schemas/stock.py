@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.schemas.chat import CitationResponse
+
 
 class StockFollowRequest(BaseModel):
     ticker: str
@@ -41,3 +43,16 @@ class StockIngestionResponse(BaseModel):
 
 class StockRefreshResponse(StockIngestionResponse):
     pass
+
+
+class StockUnfollowResponse(BaseModel):
+    ticker: str
+    message: str
+
+
+class StockDetailResponse(BaseModel):
+    stock: StockSummaryResponse
+    is_followed: bool
+    followed_at: datetime | None
+    last_ingested_at: datetime | None
+    documents: list[CitationResponse]

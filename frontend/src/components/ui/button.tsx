@@ -8,7 +8,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        default: "bg-accent-brand text-accent-brand-foreground hover:bg-accent-brand/85",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
@@ -17,7 +17,7 @@ const buttonVariants = cva(
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
-        link: "text-primary underline-offset-4 hover:underline",
+        link: "text-accent-brand underline-offset-4 hover:underline",
       },
       size: {
         default:
@@ -44,11 +44,20 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  nativeButton,
+  render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  // Composing via `render` usually swaps in a non-<button> element (e.g. a
+  // Next.js <Link>) -- default nativeButton to false in that case so Base UI
+  // doesn't warn about losing native button semantics on a real button.
+  const resolvedNativeButton = nativeButton ?? !render
+
   return (
     <ButtonPrimitive
       data-slot="button"
+      render={render}
+      nativeButton={resolvedNativeButton}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

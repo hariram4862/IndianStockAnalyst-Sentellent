@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 from app.models.user import User
-from app.schemas.chat import ChatRequest
+from app.schemas.chat import ChatRequest, ChatSessionUpdate
 from app.services.gemini_service import GeminiService
 from app.services.research_service import ResearchService
 
@@ -73,3 +73,67 @@ def test_get_session_messages_raises_for_another_users_session(db_session, monke
         assert False, "expected ValueError for a session the user does not own"
     except ValueError:
         pass
+
+
+def test_rename_session_updates_title(db_session, monkeypatch):
+    _disable_llm(monkeypatch)
+    user = _get_or_create_test_user(db_session, "sessions-rename@example.com")
+    service = ResearchService()
+
+    response = service.chat(db_session, user, ChatRequest(message="hello"))
+    renamed = service.rename_session(db_session, user, response.session_id, ChatSessionUpdate(title="My research"))
+
+    assert renamed.title == "My research"
+    sessions = service.list_sessions(db_session, user)
+    assert next(s for s in sessions if s.id == response.session_id).title == "My research"
+
+
+def test_rename_session_raises_for_another_users_session(db_session, monkeypatch):
+    _disable_llm(monkeypatch)
+    owner = _get_or_create_test_user(db_session, "sessions-rename-owner@example.com")
+    intruder = _get_or_create_test_user(db_session, "sessions-rename-intruder@example.com")
+    service = ResearchService()
+
+    response = service.chat(db_session, owner, ChatRequest(message="private research"))
+
+    try:
+        service.rename_session(db_session, intruder, response.session_id, ChatSessionUpdate(title="Hijacked"))
+        assert False, "expected ValueError for a session the user does not own"
+    except ValueError:
+        pass
+
+
+def test_delete_session_removes_it_and_its_messages(db_session, monkeypatch):
+    _disable_llm(monkeypatch)
+    user = _get_or_create_test_user(db_session, "sessions-delete@example.com")
+    service = ResearchService()
+
+    response = service.chat(db_session, user, ChatRequest(message="hello"))
+    service.delete_session(db_session, user, response.session_id)
+
+    remaining = service.list_sessions(db_session, user)
+    assert response.session_id not in [s.id for s in remaining]
+    try:
+        service.get_session_messages(db_session, user, response.session_id)
+        assert False, "expected ValueError -- session should no longer exist"
+    except ValueError:
+        pass
+
+
+def test_delete_session_raises_for_another_users_session(db_session, monkeypatch):
+    _disable_llm(monkeypatch)
+    owner = _get_or_create_test_user(db_session, "sessions-delete-owner@example.com")
+    intruder = _get_or_create_test_user(db_session, "sessions-delete-intruder@example.com")
+    service = ResearchService()
+
+    response = service.chat(db_session, owner, ChatRequest(message="private research"))
+
+    try:
+        service.delete_session(db_session, intruder, response.session_id)
+        assert False, "expected ValueError for a session the user does not own"
+    except ValueError:
+        pass
+
+    # Confirm it's still intact for the actual owner.
+    messages = service.get_session_messages(db_session, owner, response.session_id)
+    assert len(messages) == 2

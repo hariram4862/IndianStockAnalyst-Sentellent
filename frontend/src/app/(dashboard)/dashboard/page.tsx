@@ -1,168 +1,189 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
-import { Send } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
+import { motion } from "framer-motion"
+import { MessageSquare, Minus, Plus, Star, TrendingDown, TrendingUp } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Textarea } from "@/components/ui/textarea"
-import { MessageSources } from "@/components/chat/citation-list"
-import { SessionList } from "@/components/chat/session-list"
-import { getErrorMessage } from "@/lib/errors"
-import { cn } from "@/lib/utils"
-import { getSessionMessages, listSessions, sendResearchMessage } from "@/services/research"
-import type { ChatMessage } from "@/types/research"
+import { FollowTickerDialog } from "@/components/stocks/follow-ticker-dialog"
+import { relativeTime } from "@/lib/format"
+import { getPersona } from "@/services/research"
+import { listSessions } from "@/services/research"
+import { listFollowedStocks } from "@/services/stocks"
+import { useAuthStore } from "@/store/auth-store"
+import { useStockDetailStore } from "@/store/stock-detail-store"
 
-export default function ChatPage() {
-  const queryClient = useQueryClient()
-  const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState("")
-  const [personaSummary, setPersonaSummary] = useState<string | null>(null)
+function SentimentIcon({ label }: { label: string | null }) {
+  if (label === "positive") return <TrendingUp className="size-3.5 text-positive" />
+  if (label === "negative") return <TrendingDown className="size-3.5 text-negative" />
+  return <Minus className="size-3.5 text-muted-foreground" />
+}
 
+function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-border bg-card p-4"
+    >
+      <p className="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+    </motion.div>
+  )
+}
+
+export default function OverviewPage() {
+  const router = useRouter()
+  const { user } = useAuthStore()
+  const openStockDetail = useStockDetailStore((state) => state.open)
+
+  const stocksQuery = useQuery({ queryKey: ["followed-stocks"], queryFn: listFollowedStocks })
   const sessionsQuery = useQuery({ queryKey: ["sessions"], queryFn: listSessions })
+  const personaQuery = useQuery({ queryKey: ["persona"], queryFn: getPersona })
 
-  const historyQuery = useQuery({
-    queryKey: ["session-messages", activeSessionId],
-    queryFn: () => getSessionMessages(activeSessionId as number),
-    enabled: activeSessionId != null,
-  })
+  const stocks = stocksQuery.data ?? []
+  const sessions = sessionsQuery.data ?? []
+  const persona = personaQuery.data
 
-  useEffect(() => {
-    if (activeSessionId != null && historyQuery.data) {
-      setMessages(historyQuery.data)
-    }
-  }, [activeSessionId, historyQuery.data])
+  const scoredSentiments = stocks
+    .map((f) => f.stock.rolling_sentiment_score)
+    .filter((score): score is number => score != null)
+  const avgSentiment =
+    scoredSentiments.length > 0 ? scoredSentiments.reduce((a, b) => a + b, 0) / scoredSentiments.length : null
 
-  const sendMutation = useMutation({
-    mutationFn: (message: string) => sendResearchMessage(message, activeSessionId),
-    onMutate: (message) => {
-      setMessages((current) => [
-        ...current,
-        { role: "user", content: message, citations: [], created_at: new Date().toISOString() },
-      ])
-    },
-    onSuccess: (data) => {
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          content: data.answer,
-          citations: data.citations,
-          created_at: new Date().toISOString(),
-        },
-      ])
-      setActiveSessionId(data.session_id)
-      setPersonaSummary(data.persona_summary)
-      queryClient.invalidateQueries({ queryKey: ["sessions"] })
-    },
-    onError: (error) => {
-      setMessages((current) => current.slice(0, -1))
-      toast.error(getErrorMessage(error, "Could not send message."))
-    },
-  })
-
-  function handleNewChat() {
-    setActiveSessionId(null)
-    setMessages([])
-    setPersonaSummary(null)
-  }
-
-  function handleSend() {
-    const trimmed = input.trim()
-    if (!trimmed || sendMutation.isPending) return
-    setInput("")
-    sendMutation.mutate(trimmed)
-  }
+  const firstName = user?.full_name?.split(" ")[0]
+  const isLoading = stocksQuery.isLoading || sessionsQuery.isLoading
 
   return (
-    <div className="grid h-full grid-cols-1 lg:grid-cols-[240px_1fr]">
-      <aside className="hidden overflow-hidden border-r border-border lg:block">
-        <SessionList
-          sessions={sessionsQuery.data ?? []}
-          activeSessionId={activeSessionId}
-          isLoading={sessionsQuery.isLoading}
-          onSelect={setActiveSessionId}
-          onNewChat={handleNewChat}
-        />
-      </aside>
+    <div className="h-full overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-5xl space-y-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-semibold sm:text-xl">
+              {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
+            </h1>
+            <p className="text-sm text-muted-foreground">Here&apos;s where your research stands today.</p>
+          </div>
+          <div className="flex gap-2">
+            <FollowTickerDialog
+              trigger={
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Plus className="size-4" /> Follow ticker
+                </Button>
+              }
+            />
+            <Button size="sm" className="gap-1.5" onClick={() => router.push("/chat")}>
+              <MessageSquare className="size-4" /> Ask a question
+            </Button>
+          </div>
+        </div>
 
-      <div className="flex min-w-0 flex-col overflow-hidden">
-        <header className="border-b border-border px-6 py-4">
-          <h1 className="text-lg font-semibold">Research chat</h1>
-          <p className="text-sm text-muted-foreground">
-            Ask about a stock you follow, or say &quot;recommend stocks for my profile.&quot;
-          </p>
-        </header>
-
-        {personaSummary && (
-          <div className="mx-6 mt-4 rounded-lg border border-border bg-muted/50 px-4 py-2 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Investor memory: </span>
-            {personaSummary}
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile label="Stocks followed" value={stocks.length} />
+            <StatTile label="Chat sessions" value={sessions.length} />
+            <StatTile
+              label="Avg. sentiment"
+              value={
+                avgSentiment == null ? (
+                  "—"
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <SentimentIcon label={avgSentiment > 0.1 ? "positive" : avgSentiment < -0.1 ? "negative" : null} />
+                    {avgSentiment.toFixed(2)}
+                  </span>
+                )
+              }
+              hint="Across followed stocks"
+            />
+            <StatTile
+              label="Investor profile"
+              value={persona?.risk_profile ?? "Not set"}
+              hint={persona?.investment_style ?? "Tell the agent in chat"}
+            />
           </div>
         )}
 
-        <div className="mx-auto flex-1 w-full max-w-3xl space-y-4 overflow-y-auto px-6 py-4">
-          {historyQuery.isLoading && activeSessionId != null && (
-            <div className="space-y-3">
-              <Skeleton className="h-16 w-2/3" />
-              <Skeleton className="ml-auto h-16 w-2/3" />
-            </div>
-          )}
-
-          {messages.length === 0 && !historyQuery.isLoading && (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-              <p className="text-sm font-medium">Ask your first research question</p>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Try &quot;What&apos;s the sentiment on RELIANCE this week?&quot; once you&apos;re following a
-                stock.
-              </p>
-            </div>
-          )}
-
-          {messages.map((message, index) => (
-            <div key={index} className={cn("max-w-[85%]", message.role === "user" ? "ml-auto" : "mr-auto")}>
-              <div
-                className={cn(
-                  "rounded-lg border px-4 py-3 text-sm whitespace-pre-wrap",
-                  message.role === "user"
-                    ? "border-transparent bg-primary text-primary-foreground"
-                    : "border-border bg-card"
-                )}
-              >
-                {message.content}
-              </div>
-              {message.role === "assistant" && <MessageSources citations={message.citations} />}
-            </div>
-          ))}
-
-          {sendMutation.isPending && (
-            <div className="mr-auto max-w-[85%] rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-              Thinking…
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-border p-4">
-          <div className="mx-auto flex max-w-3xl items-end gap-2">
-            <Textarea
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault()
-                  handleSend()
-                }
-              }}
-              placeholder="What's the sentiment on TCS this week?"
-              className="min-h-11"
-            />
-            <Button onClick={handleSend} disabled={sendMutation.isPending || !input.trim()} size="icon">
-              <Send className="size-4" />
-            </Button>
+        {persona?.summary && (
+          <div className="rounded-xl border border-border bg-muted/40 p-4">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Investor memory</p>
+            <p className="mt-1 text-sm">{persona.summary}</p>
           </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Followed stocks</h2>
+              <Link href="/watchlist" className="text-xs font-medium text-accent-brand hover:underline">
+                View all
+              </Link>
+            </div>
+            {stocks.length === 0 && !isLoading && (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                <Star className="mx-auto size-5 text-muted-foreground" />
+                <p className="mt-2 text-sm font-medium">No stocks yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">Follow a ticker to start building your corpus.</p>
+              </div>
+            )}
+            <div className="space-y-2">
+              {stocks.slice(0, 5).map((followed) => (
+                <button
+                  key={followed.id}
+                  onClick={() => openStockDetail(followed.stock.ticker)}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:border-accent-brand/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-semibold">{followed.stock.ticker}</span>
+                    <Badge variant="outline">{followed.stock.exchange}</Badge>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <SentimentIcon label={followed.stock.rolling_sentiment_label} />
+                    {followed.stock.rolling_sentiment_label ?? "neutral"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Recent research</h2>
+              <Link href="/chat" className="text-xs font-medium text-accent-brand hover:underline">
+                Open chat
+              </Link>
+            </div>
+            {sessions.length === 0 && !isLoading && (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                <MessageSquare className="mx-auto size-5 text-muted-foreground" />
+                <p className="mt-2 text-sm font-medium">No research yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">Ask your first question to get started.</p>
+              </div>
+            )}
+            <div className="space-y-2">
+              {sessions.slice(0, 5).map((session) => (
+                <button
+                  key={session.id}
+                  onClick={() => router.push(`/chat?session=${session.id}`)}
+                  className="block w-full rounded-lg border border-border p-3 text-left transition-colors hover:border-accent-brand/40"
+                >
+                  <p className="truncate text-sm font-medium">{session.title}</p>
+                  <p className="text-xs text-muted-foreground">{relativeTime(session.updated_at)}</p>
+                </button>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </div>

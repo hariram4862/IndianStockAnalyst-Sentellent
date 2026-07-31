@@ -29,3 +29,30 @@ export interface StockIngestionResponse {
   ingested_chunks: number
   message: string
 }
+
+export interface StockUnfollowResponse {
+  ticker: string
+  message: string
+}
+
+export interface StockDetailDocument {
+  ticker: string
+  title: string
+  source_type: string
+  url: string | null
+  published_at: string | null
+  snippet: string
+  sentiment_label: string | null
+  sentiment_score: number | null
+  impact_label: string | null
+  event_type: string | null
+  similarity_score: number | null
+}
+
+export interface StockDetailResponse {
+  stock: StockSummary
+  is_followed: boolean
+  followed_at: string | null
+  last_ingested_at: string | null
+  documents: StockDetailDocument[]
+}

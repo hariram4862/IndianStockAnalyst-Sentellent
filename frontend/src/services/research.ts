@@ -22,7 +22,21 @@ export const getSessionMessages = async (sessionId: number): Promise<ChatMessage
   return response.data
 }
 
+export const renameSession = async (sessionId: number, title: string): Promise<ChatSessionSummary> => {
+  const response = await api.patch(`/research/sessions/${sessionId}`, { title })
+  return response.data
+}
+
+export const deleteSession = async (sessionId: number): Promise<void> => {
+  await api.delete(`/research/sessions/${sessionId}`)
+}
+
 export const getPersona = async (): Promise<Persona> => {
   const response = await api.get("/research/persona")
+  return response.data
+}
+
+export const resetPersona = async (): Promise<Persona> => {
+  const response = await api.delete("/research/persona")
   return response.data
 }

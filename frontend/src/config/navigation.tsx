@@ -1,5 +1,5 @@
 import type { ComponentType } from "react"
-import { MessageSquare, Star, User } from "lucide-react"
+import { LayoutDashboard, MessageSquare, Star, User } from "lucide-react"
 
 export interface NavItem {
   label: string
@@ -8,7 +8,8 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { label: "Chat", href: "/dashboard", icon: MessageSquare },
+  { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Chat", href: "/chat", icon: MessageSquare },
   { label: "Watchlist", href: "/watchlist", icon: Star },
   { label: "Profile", href: "/profile", icon: User },
 ]

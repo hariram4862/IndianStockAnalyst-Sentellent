@@ -12,6 +12,15 @@ export function formatPercent(value: number | null): string {
   return `${value.toFixed(2)}%`
 }
 
+/** Large rupee figures (market cap) in crores, the convention Indian
+ * equity research uses -- "Rs. 2,01,50,000.00" is unreadable at a glance,
+ * "Rs. 20,15,000 Cr" isn't. */
+export function formatInrCrores(value: number | null): string {
+  if (value == null) return "N/A"
+  const crores = value / 1e7
+  return `${new Intl.NumberFormat("en-IN", { maximumFractionDigits: crores >= 100 ? 0 : 2 }).format(crores)} Cr`
+}
+
 export function initialsFromName(name?: string): string {
   if (!name) return "?"
   return name

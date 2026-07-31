@@ -6,9 +6,11 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.stock import (
     FollowedStockResponse,
+    StockDetailResponse,
     StockFollowRequest,
     StockIngestionResponse,
     StockRefreshResponse,
+    StockUnfollowResponse,
 )
 from app.services.stock_service import StockService
 
@@ -46,3 +48,27 @@ def refresh_stock(
         return stock_service.refresh_stock(db, current_user, ticker)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/{ticker}/unfollow", response_model=StockUnfollowResponse)
+def unfollow_stock(
+    ticker: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return stock_service.unfollow_stock(db, current_user, ticker)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{ticker}/detail", response_model=StockDetailResponse)
+def get_stock_detail(
+    ticker: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return stock_service.get_stock_detail(db, current_user, ticker)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
