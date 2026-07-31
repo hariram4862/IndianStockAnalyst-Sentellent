@@ -58,50 +58,23 @@ resource "aws_iam_role" "ecs_task" {
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
 }
 
-# --- GitHub Actions OIDC: lets the CI workflow assume an AWS role without any
-#     long-lived access keys stored in GitHub secrets. ---
+# --- GitHub Actions CI/CD identity ---
+# OIDC federation (aws_iam_openid_connect_provider + assume-role) was tried
+# first (no long-lived keys in GitHub) but AssumeRoleWithWebIdentity kept
+# failing with a generic "not authorized" error even after correcting the
+# thumbprint twice (both a recomputed leaf/root fix and hardcoding GitHub's
+# documented root CA thumbprints) -- something about this account's OIDC
+# trust evaluation didn't resolve within the time available before the
+# deadline. Falling back to a dedicated, narrowly-scoped IAM user with a
+# static access key instead: guaranteed to work, at the cost of a long-lived
+# credential sitting in GitHub Secrets. Revisit OIDC post-deadline if desired.
 
-resource "aws_iam_openid_connect_provider" "github_actions" {
-  url            = "https://token.actions.githubusercontent.com"
-  client_id_list = ["sts.amazonaws.com"]
-  # Hardcoded rather than fetched via a `tls_certificate` data source: that
-  # approach kept resolving to a thumbprint AWS rejected (dynamically fetching
-  # the wrong certificate in the chain depending on TLS negotiation), even
-  # after correcting it to the last cert in the chain. These are GitHub's
-  # documented, stable OIDC root CA thumbprints (DigiCert Global Root CA /
-  # Global Root G2) that AWS's own GitHub Actions OIDC setup guide uses.
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
-    "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
-  ]
+resource "aws_iam_user" "github_actions_deploy" {
+  name = "${var.project_name}-github-actions-deploy"
 }
 
-data "aws_iam_policy_document" "github_actions_assume" {
-  statement {
-    actions = ["sts:AssumeRoleWithWebIdentity"]
-    principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    # Restrict to pushes/merges on main only — PRs and other branches can't deploy.
-    condition {
-      test     = "StringLike"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/main"]
-    }
-  }
-}
-
-resource "aws_iam_role" "github_actions_deploy" {
-  name               = "${var.project_name}-github-actions-deploy"
-  assume_role_policy = data.aws_iam_policy_document.github_actions_assume.json
+resource "aws_iam_access_key" "github_actions_deploy" {
+  user = aws_iam_user.github_actions_deploy.name
 }
 
 data "aws_iam_policy_document" "github_actions_deploy" {
@@ -156,8 +129,8 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 }
 
-resource "aws_iam_role_policy" "github_actions_deploy" {
+resource "aws_iam_user_policy" "github_actions_deploy" {
   name   = "${var.project_name}-github-actions-deploy"
-  role   = aws_iam_role.github_actions_deploy.id
+  user   = aws_iam_user.github_actions_deploy.name
   policy = data.aws_iam_policy_document.github_actions_deploy.json
 }

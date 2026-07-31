@@ -4,8 +4,8 @@ Provisions everything the app needs on AWS `ap-south-1`: VPC (2 public + 2 priva
 subnets, no NAT gateway), ECR (backend + frontend), RDS Postgres 16 with pgvector,
 Secrets Manager entries for app secrets, an ECS Fargate cluster running both
 services, an ALB with host-based routing behind a wildcard ACM cert, a Route53
-hosted zone for the delegated `stocks.hariram.me` subdomain, and a GitHub OIDC
-role so CI/CD can deploy without long-lived AWS keys.
+hosted zone for the delegated `stocks.hariram.me` subdomain, and a dedicated
+IAM user so CI/CD can deploy.
 
 ## Cost profile (tuned for a free-tier/student AWS account)
 
@@ -35,6 +35,17 @@ Roughly **$30-50/month** if left running continuously — destroy it with
 - **No CloudFront** — the ALB serves HTTPS directly via the wildcard ACM cert.
   CloudFront in front of the frontend is a stretch goal, not required for a
   working deployment.
+- **CI/CD auth is a static IAM user access key, not OIDC.** OIDC federation
+  (`aws_iam_openid_connect_provider` + assume-role) was the original design —
+  no long-lived key sitting in GitHub Secrets — but `AssumeRoleWithWebIdentity`
+  kept failing with a generic "not authorized" error in this AWS account even
+  after correcting the provider's thumbprint twice (once via a leaf-vs-root
+  cert fix, once by hardcoding GitHub's documented thumbprints). Given the
+  deadline, fell back to `aws_iam_user` + `aws_iam_access_key`, scoped to only
+  the ECR/ECS/PassRole/logs actions CI needs. Worth revisiting post-deadline —
+  rotate this key periodically in the meantime (`terraform apply -replace
+  aws_iam_access_key.github_actions_deploy`, then update the two GitHub
+  secrets with the new output values).
 
 ## One-time setup
 
@@ -65,7 +76,8 @@ Roughly **$30-50/month** if left running continuously — destroy it with
    for exactly how each is used):
 
    Secrets (Settings → Secrets and variables → Actions → Secrets):
-   - `AWS_DEPLOY_ROLE_ARN` = `terraform output github_actions_role_arn`
+   - `AWS_ACCESS_KEY_ID` = `terraform output github_actions_access_key_id`
+   - `AWS_SECRET_ACCESS_KEY` = `terraform output -raw github_actions_secret_access_key`
    - `ECR_BACKEND_REPOSITORY` = `terraform output ecr_backend_repository_url`
    - `ECR_FRONTEND_REPOSITORY` = `terraform output ecr_frontend_repository_url`
    - `ECS_CLUSTER` = `terraform output ecs_cluster_name`

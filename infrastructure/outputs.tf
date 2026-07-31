@@ -28,9 +28,15 @@ output "ecs_frontend_service_name" {
   value = aws_ecs_service.frontend.name
 }
 
-output "github_actions_role_arn" {
-  description = "Role ARN GitHub Actions assumes via OIDC — set as AWS_DEPLOY_ROLE_ARN in the repo."
-  value       = aws_iam_role.github_actions_deploy.arn
+output "github_actions_access_key_id" {
+  description = "Set as AWS_ACCESS_KEY_ID in the repo's GitHub Actions secrets."
+  value       = aws_iam_access_key.github_actions_deploy.id
+}
+
+output "github_actions_secret_access_key" {
+  description = "Set as AWS_SECRET_ACCESS_KEY in the repo's GitHub Actions secrets. Only readable right after apply or via `terraform output -raw github_actions_secret_access_key` (state has it too -- keep terraform.tfstate out of git, which .gitignore already does)."
+  value       = aws_iam_access_key.github_actions_deploy.secret
+  sensitive   = true
 }
 
 output "ecs_task_subnet_ids" {

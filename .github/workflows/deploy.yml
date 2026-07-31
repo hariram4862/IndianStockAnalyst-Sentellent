@@ -2,12 +2,14 @@
 #   test -> build & push images -> register new task defs -> run DB migration
 #   (against the NEW image) -> update services to the new task defs.
 #
-# Auth to AWS is via GitHub OIDC (no static AWS keys stored in this repo) — see
-# infrastructure/README.md for how the federated role is created and which
+# Auth to AWS is via a dedicated, narrowly-scoped IAM user's static access key
+# (OIDC federation was tried first but AssumeRoleWithWebIdentity kept failing
+# in this account for unresolved reasons -- see infrastructure/iam.tf) --
 # repo secrets/vars this workflow needs:
 #
 # Secrets:
-#   AWS_DEPLOY_ROLE_ARN            terraform output github_actions_role_arn
+#   AWS_ACCESS_KEY_ID              terraform output github_actions_access_key_id
+#   AWS_SECRET_ACCESS_KEY          terraform output -raw github_actions_secret_access_key
 #   ECR_BACKEND_REPOSITORY         terraform output ecr_backend_repository_url
 #   ECR_FRONTEND_REPOSITORY        terraform output ecr_frontend_repository_url
 #   ECS_CLUSTER                    terraform output ecs_cluster_name
@@ -27,7 +29,6 @@ on:
     branches: [main]
 
 permissions:
-  id-token: write # required for OIDC -> AWS role assumption
   contents: read
 
 env:
@@ -101,7 +102,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Log in to ECR
@@ -140,7 +142,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - id: backend
@@ -174,7 +177,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Run `alembic upgrade head` as a one-off ECS task
@@ -209,7 +213,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Update services to the new task definitions
