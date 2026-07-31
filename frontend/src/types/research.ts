@@ -18,3 +18,25 @@ export interface ChatResponse {
   citations: Citation[]
   persona_summary: string | null
 }
+
+export interface ChatSessionSummary {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant"
+  content: string
+  citations: Citation[]
+  created_at: string
+}
+
+export interface Persona {
+  summary: string | null
+  risk_profile: string | null
+  investment_style: string | null
+  constraints_text: string | null
+  updated_at: string | null
+}

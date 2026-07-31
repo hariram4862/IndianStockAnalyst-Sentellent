@@ -12,15 +12,15 @@ export default function GuestGuard({
   children,
 }: GuestGuardProps) {
   const router = useRouter();
-  const { token } = useAuthStore();
+  const { token, hasHydrated } = useAuthStore();
 
   useEffect(() => {
-    if (token) {
+    if (hasHydrated && token) {
       router.replace("/dashboard");
     }
-  }, [token, router]);
+  }, [hasHydrated, token, router]);
 
-  if (token) {
+  if (hasHydrated && token) {
     return null;
   }
 

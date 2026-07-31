@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, IBM_Plex_Mono } from "next/font/google";
+import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
+import { Toaster } from "@/components/ui/sonner";
 import GoogleProvider from "@/providers/google-provider";
+import QueryProvider from "@/providers/query-provider";
 
-const displayFont = Cormorant_Garamond({
+const sansFont = Inter({
   subsets: ["latin"],
-  variable: "--font-display",
+  variable: "--font-sans-display",
   weight: ["400", "500", "600", "700"],
 })
 
@@ -28,8 +30,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${displayFont.variable} ${monoFont.variable}`}>
-        <GoogleProvider>{children}</GoogleProvider>
+      <body className={`${sansFont.variable} ${monoFont.variable}`}>
+        <QueryProvider>
+          <GoogleProvider>
+            {children}
+            <Toaster />
+          </GoogleProvider>
+        </QueryProvider>
       </body>
     </html>
   );

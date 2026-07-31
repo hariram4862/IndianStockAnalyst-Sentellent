@@ -25,6 +25,7 @@ class ChatRequest(BaseModel):
 class ChatMessageResponse(BaseModel):
     role: str
     content: str
+    citations: list[CitationResponse] = []
     created_at: datetime
 
 
@@ -33,3 +34,18 @@ class ChatResponse(BaseModel):
     answer: str
     citations: list[CitationResponse]
     persona_summary: str | None = None
+
+
+class ChatSessionSummary(BaseModel):
+    id: int
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class PersonaResponse(BaseModel):
+    summary: str | None
+    risk_profile: str | None
+    investment_style: str | None
+    constraints_text: str | None
+    updated_at: datetime | None

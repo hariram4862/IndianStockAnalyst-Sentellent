@@ -11,9 +11,11 @@ interface User {
 interface AuthState {
   token: string | null;
   user: User | null;
+  hasHydrated: boolean;
 
   login: (token: string, user: User) => void;
   logout: () => void;
+  setHasHydrated: (value: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -21,6 +23,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       user: null,
+      hasHydrated: false,
 
       login: (token, user) =>
         set({
@@ -33,9 +36,19 @@ export const useAuthStore = create<AuthState>()(
           token: null,
           user: null,
         }),
+
+      setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
       name: "auth-storage",
+      // Guards (AuthGuard/GuestGuard) must not decide anything based on
+      // `token` until this flips true -- persist rehydrates from
+      // localStorage asynchronously, so the store's initial render is
+      // always token=null even for a logged-in user, which otherwise
+      // triggers a bogus redirect on every hard page load.
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

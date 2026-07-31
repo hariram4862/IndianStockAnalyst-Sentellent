@@ -7,11 +7,12 @@ import { useAuthStore } from "@/store/auth-store"
 
 export default function HomePage() {
   const router = useRouter()
-  const { token } = useAuthStore()
+  const { token, hasHydrated } = useAuthStore()
 
   useEffect(() => {
+    if (!hasHydrated) return
     router.replace(token ? "/dashboard" : "/login")
-  }, [router, token])
+  }, [router, token, hasHydrated])
 
   return null
 }

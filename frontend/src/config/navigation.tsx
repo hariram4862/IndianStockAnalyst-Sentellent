@@ -1,41 +1,14 @@
-import {
-    LayoutDashboard,
-    Bot,
-    Star,
-    LineChart,
-    User,
-    Settings,
-} from "lucide-react";
+import type { ComponentType } from "react"
+import { MessageSquare, Star, User } from "lucide-react"
 
-export const sidebarItems = [
-    {
-        title: "Dashboard",
-        href: "/",
-        icon: LayoutDashboard,
-    },
-    {
-        title: "AI Analyst",
-        href: "/ai",
-        icon: Bot,
-    },
-    {
-        title: "Watchlist",
-        href: "/watchlist",
-        icon: Star,
-    },
-    {
-        title: "Stocks",
-        href: "/stocks",
-        icon: LineChart,
-    },
-    {
-        title: "Profile",
-        href: "/profile",
-        icon: User,
-    },
-    {
-        title: "Settings",
-        href: "/settings",
-        icon: Settings,
-    },
-];
+export interface NavItem {
+  label: string
+  href: string
+  icon: ComponentType<{ className?: string }>
+}
+
+export const navItems: NavItem[] = [
+  { label: "Chat", href: "/dashboard", icon: MessageSquare },
+  { label: "Watchlist", href: "/watchlist", icon: Star },
+  { label: "Profile", href: "/profile", icon: User },
+]

@@ -12,15 +12,15 @@ export default function AuthGuard({
   children,
 }: AuthGuardProps) {
   const router = useRouter();
-  const { token } = useAuthStore();
+  const { token, hasHydrated } = useAuthStore();
 
   useEffect(() => {
-    if (!token) {
+    if (hasHydrated && !token) {
       router.replace("/login");
     }
-  }, [token, router]);
+  }, [hasHydrated, token, router]);
 
-  if (!token) {
+  if (!hasHydrated || !token) {
     return null;
   }
 
