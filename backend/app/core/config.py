@@ -21,7 +21,11 @@ class Settings(BaseSettings):
     google_client_secret: str
     frontend_url: str = "http://localhost:3000"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    # "gemini-2.0-flash" and "gemini-2.5-flash*" return 429 (zero free-tier
+    # quota) or 404 ("no longer available to new users") for newer projects.
+    # "gemini-flash-latest" is Google's maintained alias to whatever current
+    # flash model is actually available -- confirmed working.
+    gemini_model: str = "gemini-flash-latest"
     gemini_embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 1536
 

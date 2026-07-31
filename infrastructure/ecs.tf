@@ -46,7 +46,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "JWT_ALGORITHM", value = "HS256" },
         { name = "ACCESS_TOKEN_EXPIRE_MINUTES", value = "1440" },
         { name = "FRONTEND_URL", value = "https://${var.app_subdomain}" },
-        { name = "GEMINI_MODEL", value = "gemini-2.0-flash" },
+        { name = "GEMINI_MODEL", value = "gemini-flash-latest" },
         { name = "GEMINI_EMBEDDING_MODEL", value = "gemini-embedding-001" },
         { name = "EMBEDDING_DIMENSIONS", value = "1536" },
       ]
