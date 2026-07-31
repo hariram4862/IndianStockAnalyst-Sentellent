@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Check, MoreHorizontal, Pencil, Plus, Search, Trash2, X } from "lucide-react"
+import { Check, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react"
 
 import {
   AlertDialog,
@@ -161,7 +161,12 @@ export function SessionList({
                   onClick={() => onSelect(session.id)}
                   className="min-w-0 flex-1 px-3 py-2 text-left text-sm"
                 >
-                  <p className="truncate font-medium">{session.title}</p>
+                  <p className="flex items-center gap-1 truncate font-medium">
+                    {session.title.startsWith("Daily briefing") && (
+                      <Sparkles className="size-3 shrink-0 text-accent-brand" />
+                    )}
+                    <span className="truncate">{session.title}</span>
+                  </p>
                   <p className={cn("truncate text-xs", isActive ? "text-primary-foreground/70" : "text-muted-foreground")}>
                     {relativeTime(session.updated_at)}
                   </p>

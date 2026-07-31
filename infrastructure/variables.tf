@@ -110,3 +110,15 @@ variable "frontend_image_tag" {
   type        = string
   default     = "latest"
 }
+
+# --- Agentic actions (scheduled refresh / alerts / daily briefings) ---
+variable "ses_notification_email" {
+  description = "Address used as both sender and recipient for alert/briefing emails (same address for both sidesteps SES sandbox-mode recipient verification entirely). AWS emails a verification link here after apply -- must be clicked before mail actually sends; everything else (in-app alerts, decisions, refresh) works regardless."
+  type        = string
+}
+
+variable "agent_job_schedule_expression" {
+  description = "EventBridge Scheduler rate/cron expression for the scheduled agent job (refresh + alerts + daily briefings)."
+  type        = string
+  default     = "rate(6 hours)"
+}

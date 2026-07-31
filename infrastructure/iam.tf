@@ -58,6 +58,23 @@ resource "aws_iam_role" "ecs_task" {
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
 }
 
+# First AWS API access the app's own runtime identity needs: the scheduled
+# agent job sends alert/briefing emails via SES (see
+# backend/app/services/notification_service.py). Scoped to only the one
+# verified identity, not "*".
+data "aws_iam_policy_document" "ecs_task_ses" {
+  statement {
+    actions   = ["ses:SendEmail", "ses:SendRawEmail"]
+    resources = [aws_ses_email_identity.notifications.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_task_ses" {
+  name   = "${var.project_name}-ecs-task-ses"
+  role   = aws_iam_role.ecs_task.id
+  policy = data.aws_iam_policy_document.ecs_task_ses.json
+}
+
 # --- GitHub Actions CI/CD identity ---
 # OIDC federation (aws_iam_openid_connect_provider + assume-role) was tried
 # first (no long-lived keys in GitHub) but AssumeRoleWithWebIdentity kept
@@ -133,4 +150,48 @@ resource "aws_iam_user_policy" "github_actions_deploy" {
   name   = "${var.project_name}-github-actions-deploy"
   user   = aws_iam_user.github_actions_deploy.name
   policy = data.aws_iam_policy_document.github_actions_deploy.json
+}
+
+# --- EventBridge Scheduler: runs the scheduled agent job as a one-off ECS
+#     task on the same backend task definition/image, exactly like the CI/CD
+#     migration step (see infrastructure/scheduler.tf). ---
+
+data "aws_iam_policy_document" "scheduler_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["scheduler.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "scheduler_agent_job" {
+  name               = "${var.project_name}-scheduler-agent-job"
+  assume_role_policy = data.aws_iam_policy_document.scheduler_assume.json
+}
+
+data "aws_iam_policy_document" "scheduler_agent_job" {
+  statement {
+    sid     = "RunAgentJobTask"
+    actions = ["ecs:RunTask"]
+    # Wildcarded by revision, not pinned to the Terraform-known one: CI/CD
+    # registers a new task definition revision on every deploy without a
+    # `terraform apply` (see .github/workflows/deploy.yml), so a specific
+    # revision ARN here would silently freeze the scheduled job on
+    # whatever code existed at the last `apply` instead of tracking deploys.
+    resources = ["${aws_ecs_task_definition.backend.arn_without_revision}:*"]
+  }
+
+  statement {
+    sid       = "PassEcsRoles"
+    actions   = ["iam:PassRole"]
+    resources = [aws_iam_role.ecs_task_execution.arn, aws_iam_role.ecs_task.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "scheduler_agent_job" {
+  name   = "${var.project_name}-scheduler-agent-job"
+  role   = aws_iam_role.scheduler_agent_job.id
+  policy = data.aws_iam_policy_document.scheduler_agent_job.json
 }

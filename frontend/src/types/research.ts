@@ -22,7 +22,7 @@ export interface RankedStock {
   reason: string
 }
 
-export type ChatIntent = "recommend" | "research" | "chitchat"
+export type ChatIntent = "recommend" | "research" | "chitchat" | "briefing"
 
 export interface ChatResponse {
   session_id: number

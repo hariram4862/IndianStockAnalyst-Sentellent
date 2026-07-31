@@ -40,13 +40,13 @@ class ResearchService:
         answer = result["answer"]
         citations = result.get("citations", [])
         intent = result.get("intent", "chitchat")
-        ranked_stocks = [_ranked_stock_response(pick) for pick in result.get("ranked_stocks") or []]
+        ranked_stocks = [ranked_stock_response(pick) for pick in result.get("ranked_stocks") or []]
 
         assistant_message = ChatMessage(
             session_id=session.id,
             role="assistant",
             content=answer,
-            citations_json=json.dumps(_encode_message_envelope(citations, intent, ranked_stocks)),
+            citations_json=json.dumps(encode_message_envelope(citations, intent, ranked_stocks)),
         )
         db.add(assistant_message)
         session.updated_at = func.now()
@@ -168,7 +168,7 @@ class ResearchService:
         return session
 
 
-def _ranked_stock_response(pick) -> RankedStockResponse:
+def ranked_stock_response(pick) -> RankedStockResponse:
     return RankedStockResponse(
         ticker=pick.ticker,
         company_name=pick.company_name,
@@ -180,7 +180,7 @@ def _ranked_stock_response(pick) -> RankedStockResponse:
     )
 
 
-def _encode_message_envelope(
+def encode_message_envelope(
     citations: list[CitationResponse], intent: str, ranked_stocks: list[RankedStockResponse]
 ) -> dict:
     """Pack citations + intent + ranked_stocks into the single JSON blob stored in

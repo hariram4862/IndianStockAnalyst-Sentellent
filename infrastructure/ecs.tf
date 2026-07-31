@@ -49,6 +49,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "GEMINI_MODEL", value = "gemini-flash-latest" },
         { name = "GEMINI_EMBEDDING_MODEL", value = "gemini-embedding-001" },
         { name = "EMBEDDING_DIMENSIONS", value = "1536" },
+        { name = "SES_SENDER_EMAIL", value = var.ses_notification_email },
+        { name = "AWS_REGION", value = var.aws_region },
       ]
       secrets = [
         { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },

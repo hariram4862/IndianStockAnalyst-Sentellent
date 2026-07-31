@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 1536
 
+    # Both sender and recipient for alert/briefing emails -- unset means the
+    # notification service no-ops (see notification_service.NotificationService).
+    ses_sender_email: str | None = None
+    aws_region: str = "ap-south-1"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

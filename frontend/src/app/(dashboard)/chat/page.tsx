@@ -258,7 +258,7 @@ function ChatPageContent() {
               )}
 
               {message.role === "assistant" &&
-                message.intent === "recommend" &&
+                (message.intent === "recommend" || message.intent === "briefing") &&
                 (message.ranked_stocks?.length ?? 0) > 0 && (
                   <div className="mt-3">
                     <RecommendationCards picks={message.ranked_stocks ?? []} />

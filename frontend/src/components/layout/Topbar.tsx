@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { FollowTickerDialog } from "@/components/stocks/follow-ticker-dialog"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { cn } from "@/lib/utils"
 import { initialsFromName } from "@/lib/format"
 import { useAuthStore } from "@/store/auth-store"
@@ -59,6 +60,7 @@ export default function Topbar() {
           Search
           <kbd className="rounded border border-border bg-muted px-1 font-mono text-[10px]">⌘K</kbd>
         </button>
+        <NotificationBell />
         <FollowTickerDialog
           trigger={
             <Button size="sm" className="gap-1.5">

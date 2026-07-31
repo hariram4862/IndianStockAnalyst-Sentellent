@@ -4,18 +4,27 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
-import { MessageSquare, Minus, Plus, Star, TrendingDown, TrendingUp } from "lucide-react"
+import { Bot, MessageSquare, Minus, Plus, Star, TrendingDown, TrendingUp } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FollowTickerDialog } from "@/components/stocks/follow-ticker-dialog"
-import { relativeTime } from "@/lib/format"
+import { formatInr, relativeTime } from "@/lib/format"
+import { cn } from "@/lib/utils"
+import { listAgentDecisions } from "@/services/agent"
 import { getPersona } from "@/services/research"
 import { listSessions } from "@/services/research"
 import { listFollowedStocks } from "@/services/stocks"
 import { useAuthStore } from "@/store/auth-store"
 import { useStockDetailStore } from "@/store/stock-detail-store"
+import type { AgentDecisionAction } from "@/types/agent"
+
+const ACTION_BADGE: Record<AgentDecisionAction, "positive" | "negative" | "muted"> = {
+  buy: "positive",
+  avoid: "negative",
+  hold: "muted",
+}
 
 function SentimentIcon({ label }: { label: string | null }) {
   if (label === "positive") return <TrendingUp className="size-3.5 text-positive" />
@@ -45,6 +54,7 @@ export default function OverviewPage() {
   const stocksQuery = useQuery({ queryKey: ["followed-stocks"], queryFn: listFollowedStocks })
   const sessionsQuery = useQuery({ queryKey: ["sessions"], queryFn: listSessions })
   const personaQuery = useQuery({ queryKey: ["persona"], queryFn: getPersona })
+  const decisionsQuery = useQuery({ queryKey: ["agent-decisions"], queryFn: listAgentDecisions })
 
   const stocks = stocksQuery.data ?? []
   const sessions = sessionsQuery.data ?? []
@@ -185,6 +195,59 @@ export default function OverviewPage() {
             </div>
           </section>
         </div>
+
+        {decisionsQuery.data && decisionsQuery.data.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-1.5">
+              <Bot className="size-4 text-accent-brand" />
+              <h2 className="text-sm font-semibold">Recent agent decisions</h2>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Paper-only calls the agent made autonomously in your daily briefings — never a real trade.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {decisionsQuery.data.slice(0, 6).map((decision) => {
+                const changePercent =
+                  decision.price_at_decision_inr && decision.current_price_inr
+                    ? ((decision.current_price_inr - decision.price_at_decision_inr) / decision.price_at_decision_inr) *
+                      100
+                    : null
+                return (
+                  <button
+                    key={decision.id}
+                    onClick={() => openStockDetail(decision.ticker)}
+                    className="space-y-1.5 rounded-lg border border-border p-3 text-left transition-colors hover:border-accent-brand/40"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm font-semibold">{decision.ticker}</span>
+                        <Badge variant={ACTION_BADGE[decision.action]}>{decision.action}</Badge>
+                      </div>
+                      {changePercent != null && (
+                        <span
+                          className={cn(
+                            "text-xs font-medium",
+                            changePercent > 0 ? "text-positive" : changePercent < 0 ? "text-negative" : "text-muted-foreground"
+                          )}
+                        >
+                          {changePercent > 0 ? "+" : ""}
+                          {changePercent.toFixed(1)}%
+                        </span>
+                      )}
+                    </div>
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{decision.reasoning}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {decision.price_at_decision_inr != null && `Called at ${formatInr(decision.price_at_decision_inr)}`}
+                      {decision.current_price_inr != null && ` · now ${formatInr(decision.current_price_inr)}`}
+                      {" · "}
+                      {relativeTime(decision.created_at)}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   )
