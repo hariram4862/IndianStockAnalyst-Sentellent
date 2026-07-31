@@ -1,0 +1,225 @@
+# Push-to-main deploy pipeline:
+#   test -> build & push images -> register new task defs -> run DB migration
+#   (against the NEW image) -> update services to the new task defs.
+#
+# Auth to AWS is via GitHub OIDC (no static AWS keys stored in this repo) — see
+# infrastructure/README.md for how the federated role is created and which
+# repo secrets/vars this workflow needs:
+#
+# Secrets:
+#   AWS_DEPLOY_ROLE_ARN            terraform output github_actions_role_arn
+#   ECR_BACKEND_REPOSITORY         terraform output ecr_backend_repository_url
+#   ECR_FRONTEND_REPOSITORY        terraform output ecr_frontend_repository_url
+#   ECS_CLUSTER                    terraform output ecs_cluster_name
+#   ECS_BACKEND_SERVICE            terraform output ecs_backend_service_name
+#   ECS_FRONTEND_SERVICE           terraform output ecs_frontend_service_name
+#   ECS_TASK_SUBNET_IDS            terraform output ecs_task_subnet_ids (comma-separated)
+#   ECS_TASKS_SECURITY_GROUP_ID    terraform output ecs_tasks_security_group_id
+#   NEXT_PUBLIC_GOOGLE_CLIENT_ID   same Google OAuth client ID used by Terraform
+# Variables:
+#   AWS_REGION                     ap-south-1
+#   NEXT_PUBLIC_API_URL             terraform output api_url
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write # required for OIDC -> AWS role assumption
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: stock_analyst_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run migrations against the test database
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/stock_analyst_test
+        run: alembic upgrade head
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/stock_analyst_test
+          APP_NAME: "Sentellent Indian Stock Analyst"
+          APP_VERSION: "1.0.0"
+          ENVIRONMENT: test
+          JWT_SECRET: test-secret
+          JWT_ALGORITHM: HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+          GOOGLE_CLIENT_ID: test-client-id
+          GOOGLE_CLIENT_SECRET: test-client-secret
+        run: pytest -v
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        run: echo "value=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        working-directory: backend
+        run: |
+          docker build -t "${{ secrets.ECR_BACKEND_REPOSITORY }}:${{ steps.tag.outputs.value }}" \
+                       -t "${{ secrets.ECR_BACKEND_REPOSITORY }}:latest" .
+          docker push "${{ secrets.ECR_BACKEND_REPOSITORY }}:${{ steps.tag.outputs.value }}"
+          docker push "${{ secrets.ECR_BACKEND_REPOSITORY }}:latest"
+
+      - name: Build and push frontend image
+        working-directory: frontend
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
+            --build-arg NEXT_PUBLIC_GOOGLE_CLIENT_ID="${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}" \
+            -t "${{ secrets.ECR_FRONTEND_REPOSITORY }}:${{ steps.tag.outputs.value }}" \
+            -t "${{ secrets.ECR_FRONTEND_REPOSITORY }}:latest" .
+          docker push "${{ secrets.ECR_FRONTEND_REPOSITORY }}:${{ steps.tag.outputs.value }}"
+          docker push "${{ secrets.ECR_FRONTEND_REPOSITORY }}:latest"
+
+  # Registers new task-definition revisions pointing at the freshly pushed
+  # images, WITHOUT touching the running services yet. The migration job runs
+  # against this new backend revision so schema changes and app code land
+  # together; the actual services only cut over once migration succeeds.
+  register-task-defs:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    outputs:
+      backend_task_def_arn: ${{ steps.backend.outputs.arn }}
+      frontend_task_def_arn: ${{ steps.frontend.outputs.arn }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: backend
+        name: Register backend task definition
+        run: |
+          set -euo pipefail
+          CURRENT=$(aws ecs describe-task-definition --task-definition stock-analyst-backend --query 'taskDefinition')
+          NEW=$(echo "$CURRENT" | jq \
+            --arg IMAGE "${{ secrets.ECR_BACKEND_REPOSITORY }}:${{ needs.build-and-push.outputs.image_tag }}" \
+            '(.containerDefinitions[] | select(.name == "backend") | .image) = $IMAGE |
+             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          ARN=$(aws ecs register-task-definition --cli-input-json "$NEW" --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+
+      - id: frontend
+        name: Register frontend task definition
+        run: |
+          set -euo pipefail
+          CURRENT=$(aws ecs describe-task-definition --task-definition stock-analyst-frontend --query 'taskDefinition')
+          NEW=$(echo "$CURRENT" | jq \
+            --arg IMAGE "${{ secrets.ECR_FRONTEND_REPOSITORY }}:${{ needs.build-and-push.outputs.image_tag }}" \
+            '(.containerDefinitions[] | select(.name == "frontend") | .image) = $IMAGE |
+             del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+          ARN=$(aws ecs register-task-definition --cli-input-json "$NEW" --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+
+  migrate:
+    needs: register-task-defs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run `alembic upgrade head` as a one-off ECS task
+        run: |
+          set -euo pipefail
+          SUBNETS=$(echo "${{ secrets.ECS_TASK_SUBNET_IDS }}" | tr ',' '\n' | jq -R . | jq -s -c .)
+          SG=$(echo '["${{ secrets.ECS_TASKS_SECURITY_GROUP_ID }}"]')
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --task-definition "${{ needs.register-task-defs.outputs.backend_task_def_arn }}" \
+            --launch-type FARGATE \
+            --network-configuration "{\"awsvpcConfiguration\":{\"subnets\":$SUBNETS,\"securityGroups\":$SG,\"assignPublicIp\":\"DISABLED\"}}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"backend\",\"command\":[\"alembic\",\"upgrade\",\"head\"]}]}" \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "${{ secrets.ECS_CLUSTER }}" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Migration task failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+
+  deploy:
+    needs: [register-task-defs, migrate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update services to the new task definitions
+        run: |
+          set -euo pipefail
+          aws ecs update-service --cluster "${{ secrets.ECS_CLUSTER }}" --service "${{ secrets.ECS_BACKEND_SERVICE }}" \
+            --task-definition "${{ needs.register-task-defs.outputs.backend_task_def_arn }}" --force-new-deployment > /dev/null
+
+          aws ecs update-service --cluster "${{ secrets.ECS_CLUSTER }}" --service "${{ secrets.ECS_FRONTEND_SERVICE }}" \
+            --task-definition "${{ needs.register-task-defs.outputs.frontend_task_def_arn }}" --force-new-deployment > /dev/null
+
+      - name: Wait for services to stabilize
+        run: |
+          aws ecs wait services-stable --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --services "${{ secrets.ECS_BACKEND_SERVICE }}" "${{ secrets.ECS_FRONTEND_SERVICE }}"

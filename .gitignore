@@ -1,0 +1,32 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+.venv/
+backend/.venv/
+
+# Node / Next.js (frontend has its own .gitignore too)
+node_modules/
+.next/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+tfplan*
+crash.log
+crash.*.log
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

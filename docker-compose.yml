@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+
+    container_name: stock-analyst-postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: stock_analyst
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stock_analyst"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+
+    container_name: stock-analyst-backend
+
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/stock_analyst
+
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+
+    container_name: stock-analyst-frontend
+
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
