@@ -48,6 +48,10 @@ function ChatPageContent() {
   const [animateIndex, setAnimateIndex] = useState<number | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Session id whose messages were just set locally by sendMutation -- lets
+  // the history-sync effect below skip its own redundant refetch instead of
+  // clobbering the reply mid-typewriter-animation (see useTypewriter fix).
+  const justSentSessionRef = useRef<number | null>(null)
 
   const sessionsQuery = useQuery({ queryKey: ["sessions"], queryFn: listSessions })
   const stocksQuery = useQuery({ queryKey: ["followed-stocks"], queryFn: listFollowedStocks })
@@ -71,9 +75,21 @@ function ChatPageContent() {
   // Mirrors react-query's session-history cache into local state so sent
   // messages can be appended optimistically on top of it; justified effect
   // (syncing from an external cache), not state derivable during render.
+  //
+  // Sending a message into a brand-new session flips activeSessionId from
+  // null -> a real id, which *enables* this query for the first time and
+  // fires an immediate fetch. Without the guard below, that fetch resolves
+  // moments later and this effect would overwrite `messages` with the
+  // server copy and reset animateIndex to null -- disabling the just-added
+  // reply's typewriter mid-reveal. useTypewriter now handles that
+  // gracefully (jumps to full text instead of freezing), but skipping the
+  // redundant resync here avoids visibly truncating the animation at all.
   useEffect(() => {
     if (activeSessionId != null && historyQuery.data) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (justSentSessionRef.current === activeSessionId) {
+        justSentSessionRef.current = null
+        return
+      }
       setMessages(historyQuery.data)
       setAnimateIndex(null)
     }
@@ -109,6 +125,7 @@ function ChatPageContent() {
         setAnimateIndex(next.length - 1)
         return next
       })
+      justSentSessionRef.current = data.session_id
       setActiveSessionId(data.session_id)
       setPersonaSummary(data.persona_summary)
       queryClient.invalidateQueries({ queryKey: ["sessions"] })

@@ -35,7 +35,9 @@ FAKE_ARTICLE = NewsArticlePayload(
 
 def _patch_providers(service: IngestionService, monkeypatch, articles):
     monkeypatch.setattr(service.fundamentals_provider, "fetch", lambda ticker: FAKE_FUNDAMENTALS)
-    monkeypatch.setattr(service.news_provider, "fetch_for_ticker", lambda ticker, limit_per_feed=8: articles)
+    monkeypatch.setattr(
+        service.news_provider, "fetch_for_ticker", lambda ticker, company_name=None, limit_per_feed=8: articles
+    )
 
 
 def test_ingest_ticker_twice_does_not_duplicate_documents_or_chunks(db_session, monkeypatch):

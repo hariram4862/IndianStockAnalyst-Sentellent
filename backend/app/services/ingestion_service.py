@@ -55,7 +55,7 @@ class IngestionService:
             f"{ticker.lower()}-fundamentals-phase2",
         )
 
-        articles = self.news_provider.fetch_for_ticker(ticker)
+        articles = self.news_provider.fetch_for_ticker(ticker, company_name=stock.company_name)
         if not articles and ticker in SEED_STOCKS:
             articles = self._seed_articles(ticker)
             source_mode = "seeded" if source_mode != "real" else "mixed"
@@ -124,7 +124,11 @@ class IngestionService:
                 source_type="fundamentals",
                 external_id=external_id,
                 title=f"{stock.ticker} fundamentals snapshot",
-                url=None,
+                # Real, live page for the actual data provider (yfinance/Yahoo
+                # Finance) this row was fetched from -- not a placeholder link,
+                # and not screener.in's page, since figures there can differ
+                # slightly from what was actually ingested here.
+                url=f"https://finance.yahoo.com/quote/{stock.ticker}.NS/",
                 published_at=None,
                 content_hash=content_hash,
                 content=content,
@@ -136,6 +140,7 @@ class IngestionService:
             created = 1
         else:
             document.title = f"{stock.ticker} fundamentals snapshot"
+            document.url = f"https://finance.yahoo.com/quote/{stock.ticker}.NS/"
             document.content_hash = content_hash
             document.content = content
             document.mentioned_tickers = stock.ticker

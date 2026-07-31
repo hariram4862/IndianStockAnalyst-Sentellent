@@ -45,7 +45,9 @@ def _get_or_create_test_user(db_session, email: str) -> User:
 def _patch_providers(service: StockService, monkeypatch):
     monkeypatch.setattr(service.ingestion_service.fundamentals_provider, "fetch", lambda ticker: FAKE_FUNDAMENTALS)
     monkeypatch.setattr(
-        service.ingestion_service.news_provider, "fetch_for_ticker", lambda ticker, limit_per_feed=8: [FAKE_ARTICLE]
+        service.ingestion_service.news_provider,
+        "fetch_for_ticker",
+        lambda ticker, company_name=None, limit_per_feed=8: [FAKE_ARTICLE],
     )
 
 
