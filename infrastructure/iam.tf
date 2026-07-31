@@ -61,14 +61,19 @@ resource "aws_iam_role" "ecs_task" {
 # --- GitHub Actions OIDC: lets the CI workflow assume an AWS role without any
 #     long-lived access keys stored in GitHub secrets. ---
 
-data "tls_certificate" "github_actions" {
-  url = "https://token.actions.githubusercontent.com/.well-known/openid-configuration"
-}
-
 resource "aws_iam_openid_connect_provider" "github_actions" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.github_actions.certificates[0].sha1_fingerprint]
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+  # Hardcoded rather than fetched via a `tls_certificate` data source: that
+  # approach kept resolving to a thumbprint AWS rejected (dynamically fetching
+  # the wrong certificate in the chain depending on TLS negotiation), even
+  # after correcting it to the last cert in the chain. These are GitHub's
+  # documented, stable OIDC root CA thumbprints (DigiCert Global Root CA /
+  # Global Root G2) that AWS's own GitHub Actions OIDC setup guide uses.
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1",
+    "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
+  ]
 }
 
 data "aws_iam_policy_document" "github_actions_assume" {
