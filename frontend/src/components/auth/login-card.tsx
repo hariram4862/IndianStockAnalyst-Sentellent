@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
 import { motion } from "framer-motion";
@@ -22,6 +22,18 @@ export default function LoginCard() {
   const router = useRouter();
   const { login } = useAuthStore();
   const [signingIn, setSigningIn] = useState(false);
+
+  // Not useSearchParams -- reading window.location directly avoids the
+  // Suspense-boundary requirement that hook forces on the whole page, for a
+  // one-off "why am I here" message after the api client's 401 handler
+  // bounced the user back from an expired session.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("sessionExpired")) {
+      toast.info("Your session expired. Please sign in again.");
+      window.history.replaceState({}, "", "/login");
+    }
+  }, []);
 
   async function handleSuccess(response: CredentialResponse) {
     if (!response.credential) {
