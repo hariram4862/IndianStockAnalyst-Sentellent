@@ -1,10 +1,12 @@
 from app.services.agent_graph import (
+    _carry_forward_ticker,
     _classify_intent,
     _extract_persona_via_keywords,
     _extract_ticker_mentions,
     _extract_unfollowed_ticker_mentions,
     _looks_research_related,
     _merge_text,
+    _trim_history_for_prompt,
 )
 
 
@@ -22,6 +24,12 @@ def test_classify_intent_chitchat():
     assert _classify_intent("hello") == "chitchat"
     assert _classify_intent("") == "chitchat"
     assert _classify_intent("thanks!") == "chitchat"
+
+
+def test_classify_intent_memory():
+    assert _classify_intent("What do you know about me?") == "memory"
+    assert _classify_intent("What's my investor profile?") == "memory"
+    assert _classify_intent("What's my profile") == "memory"
 
 
 def test_extract_ticker_mentions_only_matches_followed_tickers():
@@ -51,12 +59,64 @@ def test_looks_research_related():
     assert _looks_research_related("") is False
 
 
+def test_carry_forward_ticker_finds_last_mentioned_followed_ticker():
+    followed = ["RELIANCE", "TCS"]
+    history = [
+        ("user", "What's the sentiment on TCS this week?"),
+        ("assistant", "TCS sentiment is positive per [1]."),
+    ]
+    assert _carry_forward_ticker(history, followed) == ["TCS"]
+
+
+def test_carry_forward_ticker_prefers_the_most_recent_mention():
+    followed = ["RELIANCE", "TCS"]
+    history = [
+        ("user", "What's the sentiment on RELIANCE?"),
+        ("assistant", "RELIANCE sentiment is neutral per [1]."),
+        ("user", "And TCS?"),
+        ("assistant", "TCS sentiment is positive per [1]."),
+    ]
+    assert _carry_forward_ticker(history, followed) == ["TCS"]
+
+
+def test_carry_forward_ticker_returns_empty_when_nothing_mentioned():
+    followed = ["RELIANCE"]
+    history = [("user", "hello"), ("assistant", "Hi! Ask me about a stock you follow.")]
+    assert _carry_forward_ticker(history, followed) == []
+
+
+def test_carry_forward_ticker_returns_empty_for_no_history():
+    assert _carry_forward_ticker([], ["RELIANCE"]) == []
+
+
+def test_trim_history_for_prompt_caps_message_count_and_length():
+    history = [("user", f"message {i}") for i in range(20)]
+    trimmed = _trim_history_for_prompt(history)
+    assert len(trimmed) <= 8
+    assert trimmed[-1] == ("user", "message 19")
+
+
+def test_trim_history_for_prompt_caps_each_message_length():
+    history = [("user", "x" * 5000)]
+    trimmed = _trim_history_for_prompt(history)
+    assert len(trimmed[0][1]) <= 600
+
+
 def test_extract_persona_via_keywords_captures_avoid_constraint():
     result = _extract_persona_via_keywords("I'm a conservative, dividend-focused investor and I avoid high-debt companies.")
     assert result["risk_profile"] == "conservative"
     assert result["investment_style"] == "dividend-focused"
     assert "avoid" in result["constraint"].lower()
     assert result["summary_delta"]
+
+
+def test_extract_persona_via_keywords_ignores_questions_sharing_a_trait_word():
+    """Regression: "and its dividend yield?" must not be read as a
+    "dividend-focused" persona statement just because it contains the word
+    "dividend" -- it's a question about a stock, not a self-declaration."""
+    result = _extract_persona_via_keywords("and its dividend yield?")
+    assert result["investment_style"] is None
+    assert result["summary_delta"] is None
 
 
 def test_extract_persona_via_keywords_no_signal():

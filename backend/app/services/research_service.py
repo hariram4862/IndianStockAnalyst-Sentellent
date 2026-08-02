@@ -21,6 +21,11 @@ from app.schemas.chat import (
 from app.services.agent_graph import AgentGraph
 
 MAX_AUTO_TITLE_LENGTH = 60
+# How many prior messages in the session are loaded and handed to the agent
+# as conversational context on each turn. Capped for cost/latency -- this is
+# short-term "keep the thread" memory for the current chat, distinct from the
+# long-term investor-persona memory (UserPersonaMemory), which has no cap.
+MAX_HISTORY_MESSAGES = 12
 
 
 class ResearchService:
@@ -32,11 +37,16 @@ class ResearchService:
 
     def chat(self, db: Session, user: User, payload: ChatRequest) -> ChatResponse:
         session = self._get_or_create_session(db, user.id, payload.session_id, payload.message)
+        # Load the transcript *before* the new user message is persisted, so
+        # the agent sees prior turns as history, not a duplicate of the
+        # current one.
+        history = self._recent_history(db, session.id)
+
         user_message = ChatMessage(session_id=session.id, role="user", content=payload.message)
         db.add(user_message)
         db.flush()
 
-        result = AgentGraph(db, user).run(payload.message)
+        result = AgentGraph(db, user).run(payload.message, history=history)
         answer = result["answer"]
         citations = result.get("citations", [])
         intent = result.get("intent", "chitchat")
@@ -81,8 +91,11 @@ class ResearchService:
         if session is None:
             raise ValueError(f"Session {session_id} not found")
 
+        # Ordered by id, not created_at -- see _recent_history for why a tie
+        # on the same commit's timestamp would otherwise risk rendering a
+        # turn's assistant reply before the user question it answered.
         messages = db.execute(
-            select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc())
+            select(ChatMessage).where(ChatMessage.session_id == session_id).order_by(ChatMessage.id.asc())
         ).scalars().all()
         result = []
         for message in messages:
@@ -118,6 +131,19 @@ class ResearchService:
 
         db.delete(session)
         db.commit()
+
+    def _recent_history(self, db: Session, session_id: int) -> list[tuple[str, str]]:
+        # Ordered by primary key, not created_at: a turn's user + assistant
+        # rows are inserted in the same commit, so func.now() gives them an
+        # identical timestamp and created_at alone can't tell them apart --
+        # id is reliably monotonic with insertion order regardless.
+        rows = db.execute(
+            select(ChatMessage.role, ChatMessage.content)
+            .where(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.id.desc())
+            .limit(MAX_HISTORY_MESSAGES)
+        ).all()
+        return [(role, content) for role, content in reversed(rows)]
 
     def _get_owned_session(self, db: Session, user_id: int, session_id: int) -> ChatSession | None:
         return db.execute(
