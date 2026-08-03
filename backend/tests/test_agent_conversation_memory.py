@@ -1,9 +1,13 @@
+import uuid
+
 from sqlalchemy import select
 
+from app.models.document import DocumentChunk, SourceDocument
 from app.models.stock import FollowedStock, StockEntity
 from app.models.user import User
 from app.schemas.chat import ChatRequest
 from app.services.agent_graph import AgentGraph
+from app.services.embedding_service import EmbeddingService
 from app.services.gemini_service import GeminiService
 from app.services.research_service import ResearchService
 
@@ -77,16 +81,41 @@ def test_a_new_session_does_not_inherit_another_sessions_history(db_session, mon
     assert captured_histories[1] == []
 
 
+def _seed_news(db_session, stock: StockEntity, content: str) -> None:
+    """A minimal grounded article + embedded chunk so retrieval has something
+    real to find -- without this, "no ingested data" is the *correct* answer
+    regardless of whether ticker carry-forward worked, making that assertion
+    meaningless."""
+    document = SourceDocument(
+        stock_id=stock.id,
+        source_type="news",
+        external_id=f"test-{stock.ticker}-{uuid.uuid4().hex[:8]}",
+        title=f"{stock.ticker}: test news",
+        content=content,
+        sentiment_label="neutral",
+        mentioned_tickers=stock.ticker,
+    )
+    db_session.add(document)
+    db_session.flush()
+    embedding = EmbeddingService().embed_text(content)
+    db_session.add(DocumentChunk(document_id=document.id, chunk_index=0, content=content, embedding=embedding))
+    db_session.flush()
+
+
 def test_followup_without_repeating_the_ticker_still_resolves_it(db_session, monkeypatch):
     """"What's the sentiment on TCS?" followed by "and its dividend yield?"
     should still resolve to TCS via the carried-forward ticker, not fall
     through to an unscoped answer."""
     monkeypatch.setattr(GeminiService, "is_enabled", lambda self: False)
     user = _get_or_create_test_user(db_session, "memory-followup@example.com")
-    _follow_stock(db_session, user, "FOLLOWCO")
+    stock = _follow_stock(db_session, user, "FOLLOWUPCO")
+    _seed_news(
+        db_session, stock,
+        "FOLLOWUPCO Ltd reported a stable quarter with a dividend yield of 2.1% and steady operating cash flow.",
+    )
     service = ResearchService()
 
-    first = service.chat(db_session, user, ChatRequest(message="What's the sentiment on FOLLOWCO this week?"))
+    first = service.chat(db_session, user, ChatRequest(message="What's the sentiment on FOLLOWUPCO this week?"))
     second = service.chat(
         db_session, user, ChatRequest(message="and its dividend yield?", session_id=first.session_id)
     )
